@@ -4,10 +4,15 @@ import { redirect } from "next/navigation";
 import { logoutAction } from "./actions";
 import Image from "next/image";
 import UnitForm from "./UnitForm";
+import UnitSelector from "./UnitSelector";
 import { db } from "../../db";
 import { atendimentos, centers } from "../../db/schema";
 
-export default async function DashboardPage() {
+interface PageProps {
+  searchParams: Promise<{ centerId?: string }>;
+}
+
+export default async function DashboardPage({ searchParams }: PageProps) {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("session")?.value;
 
@@ -22,45 +27,78 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  // Variáveis para armazenar os dados caso seja um ADMIN
-  let totalAtendimentos = 0;
-  const dadosAgrupados = {
-    masculino: 0,
-    feminino: 0,
-    primario: 0,
-    reincidente: 0,
-    reiterante: 0,
+  // Lendo os parâmetros de filtro da URL de forma assíncrona
+  const { centerId } = await searchParams;
+
+  // Estrutura completa dos contadores estatísticos dos 6 tópicos obrigatórios
+  const estatisticas = {
+    total: 0,
+    genero: { Masculino: 0, Feminino: 0, Outros: 0 },
+    racaCor: { Branca: 0, Preta: 0, Parda: 0, Amarela: 0, Indígena: 0, "Não Informado": 0 },
+    faixaEtaria: { "12 a 13 anos": 0, "14 a 15 anos": 0, "16 a 17 anos": 0, "18 a 21 anos": 0 },
+    situacao: { Primário: 0, Reincidente: 0, Reiterante: 0 },
+    religiao: { Católica: 0, Evangélica: 0, "Matriz Africana": 0, "Sem Religião": 0, Outras: 0 },
+    orientacao: { Heterossexual: 0, Homossexual: 0, Bissexual: 0, Outros: 0, "Não Informado": 0 }
   };
-  let unidadesComContagem: { nome: string; quantidade: number }[] = [];
 
-  // Se o usuário for ADMIN, fazemos as buscas no banco de dados
+  let todasUnidades: { id: string; name: string }[] = [];
+  let tabelaUnidades: { nome: string; quantidade: number }[] = [];
+  let nomeUnidadeSelecionada = "Consolidado Geral (Todo o Estado)";
+
   if (session.role === "ADMIN") {
-    const todosAtendimentos = await db.select().from(atendimentos);
-    const todasUnidades = await db.select().from(centers);
+    todasUnidades = await db.select().from(centers);
+    
+    // Busca os atendimentos aplicando o filtro caso um centro tenha sido selecionado no dropdown
+    const queryAtendimentos = db.select().from(atendimentos);
+    if (centerId) {
+      const unidadeFiltrada = todasUnidades.find(u => u.id === centerId);
+      if (unidadeFiltrada) nomeUnidadeSelecionada = unidadeFiltrada.name;
+    }
 
-    totalAtendimentos = todosAtendimentos.length;
+    const listaAtendimentos = await queryAtendimentos;
+    const atendimentosFiltrados = centerId 
+      ? listaAtendimentos.filter(a => a.centerId === centerId)
+      : listaAtendimentos;
 
-    // Calculando totais de gênero e situação processual
-    todosAtendimentos.forEach((atendimento) => {
-      if (atendimento.genero === "Masculino") dadosAgrupados.masculino++;
-      if (atendimento.genero === "Feminino") dadosAgrupados.feminino++;
-      
-      if (atendimento.situacaoProcessual === "Primário") dadosAgrupados.primario++;
-      if (atendimento.situacaoProcessual === "Reincidente") dadosAgrupados.reincidente++;
-      if (atendimento.situacaoProcessual === "Reiterante") dadosAgrupados.reiterante++;
+    estatisticas.total = atendimentosFiltrados.length;
+
+    // Faz a varredura e contabilização automática de cada ficha cadastrada
+    atendimentosFiltrados.forEach((a) => {
+      if (a.genero in estatisticas.genero) estatisticas.genero[a.genero as keyof typeof estatisticas.genero]++;
+      if (a.racaCor in estatisticas.racaCor) estatisticas.racaCor[a.racaCor as keyof typeof estatisticas.racaCor]++;
+      if (a.faixaEtaria in estatisticas.faixaEtaria) estatisticas.faixaEtaria[a.faixaEtaria as keyof typeof estatisticas.faixaEtaria]++;
+      if (a.situacaoProcessual in estatisticas.situacao) estatisticas.situacao[a.situacaoProcessual as keyof typeof estatisticas.situacao]++;
+      if (a.religiao in estatisticas.religiao) estatisticas.religiao[a.religiao as keyof typeof estatisticas.religiao]++;
+      if (a.orientacaoSexual in estatisticas.orientacao) estatisticas.orientacao[a.orientacaoSexual as keyof typeof estatisticas.orientacao]++;
     });
 
-    // Agrupando atendimentos por Unidade
-    unidadesComContagem = todasUnidades.map((unidade) => {
-      const quantidade = todosAtendimentos.filter((a) => a.centerId === unidade.id).length;
-      return { nome: unidade.name, quantidade };
-    });
+    // Monta a listagem lateral de centros com a quantidade de internos de cada um
+    tabelaUnidades = todasUnidades.map((u) => ({
+      nome: u.name,
+      quantidade: listaAtendimentos.filter((a) => a.centerId === u.id).length
+    }));
   }
+
+  // Helper simples para desenhar barras estatísticas horizontais com Tailwind
+  const ProgressBar = ({ label, valor, total }: { label: string; valor: number; total: number }) => {
+    const porcentagem = total > 0 ? Math.round((valor / total) * 100) : 0;
+    return (
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs font-semibold text-gray-700">
+          <span>{label}</span>
+          <span>{valor} ({porcentagem}%)</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="bg-[#0f2a4a] h-2 rounded-full transition-all duration-500" style={{ width: `${porcentagem}%` }}></div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {/* Barra de Navegação Superior */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm">
+      <header className="bg-white border-b border-gray-200 px-6 py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm gap-4">
         <div className="flex items-center gap-4">
           <Image src="/logo.png" alt="Logo FASE" width={50} height={50} className="drop-shadow-sm" />
           <div>
@@ -69,98 +107,127 @@ export default async function DashboardPage() {
           </div>
         </div>
         
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded-full border border-gray-200 shadow-inner">
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200 shadow-inner hidden sm:inline-block">
             Perfil: <span className="font-medium">{session.role}</span>
           </span>
+          
+          {/* Botão de Gerenciamento APENAS para o Administrador */}
+          {session.role === "ADMIN" && (
+            <a href="/dashboard/gerenciamento" className="text-sm font-bold text-white bg-[#0f2a4a] hover:bg-[#1a3a6a] px-4 py-1.5 rounded-lg transition-colors shadow-sm">
+              Gerenciar Sistema
+            </a>
+          )}
+
           <form action={logoutAction}>
-            <button type="submit" className="text-sm font-bold text-red-600 hover:text-red-800 transition-colors">Sair</button>
+            <button type="submit" className="text-sm font-bold text-red-600 hover:text-red-800 transition-colors ml-1">
+              Sair
+            </button>
           </form>
         </div>
       </header>
 
-      {/* Área de Conteúdo Principal */}
+      {/* Conteúdo Principal */}
       <main className="flex-1 p-6">
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
           
           {session.role === "ADMIN" ? (
             <div>
-              <h2 className="text-2xl font-bold text-[#0f2a4a] mb-2">Painel do Administrador Central</h2>
-              <p className="text-gray-600 mb-8 border-b pb-4">
-                Visão geral consolidada de todas as unidades socioeducativas do estado.
-              </p>
-
-              {/* Grid de Cards Resumo */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {/* Card Total */}
-                <div className="bg-[#0f2a4a] text-white p-6 rounded-xl shadow-md flex flex-col justify-center items-center">
-                  <span className="text-sm font-medium uppercase tracking-wider text-blue-200 mb-1">Total de Internos</span>
-                  <span className="text-5xl font-extrabold">{totalAtendimentos}</span>
-                </div>
-
-                {/* Card Gênero */}
-                <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
-                  <h3 className="text-sm font-bold text-gray-500 uppercase mb-3">Distribuição por Gênero</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center border-b pb-1">
-                      <span className="text-gray-700">Masculino</span>
-                      <span className="font-bold text-[#0f2a4a]">{dadosAgrupados.masculino}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="text-gray-700">Feminino</span>
-                      <span className="font-bold text-[#0f2a4a]">{dadosAgrupados.feminino}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Card Processual */}
-                <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
-                  <h3 className="text-sm font-bold text-gray-500 uppercase mb-3">Situação Processual</h3>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center border-b pb-1">
-                      <span className="text-gray-700">Primários</span>
-                      <span className="font-bold text-green-600">{dadosAgrupados.primario}</span>
-                    </div>
-                    <div className="flex justify-between items-center border-b pb-1 pt-1">
-                      <span className="text-gray-700">Reincidentes</span>
-                      <span className="font-bold text-orange-600">{dadosAgrupados.reincidente}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-1">
-                      <span className="text-gray-700">Reiterantes</span>
-                      <span className="font-bold text-red-600">{dadosAgrupados.reiterante}</span>
-                    </div>
-                  </div>
-                </div>
+              <div className="border-b pb-4 mb-6">
+                <h2 className="text-2xl font-bold text-[#0f2a4a]">Painel do Administrador Central</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  Exibindo dados de: <span className="font-bold text-[#1a3a6a]">{nomeUnidadeSelecionada}</span>
+                </p>
               </div>
 
-              {/* Tabela de Unidades */}
-              <div>
-                <h3 className="text-lg font-bold text-[#0f2a4a] mb-4">Adolescentes por Unidade</h3>
-                <div className="overflow-hidden rounded-lg border border-gray-200">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unidade Socioeducativa</th>
-                        <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total de Internos</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {unidadesComContagem.map((unidade) => (
-                        <tr key={unidade.nome} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{unidade.nome}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[#0f2a4a] text-right">{unidade.quantidade}</td>
-                        </tr>
+              {/* Filtro Dropdown */}
+              <UnitSelector units={todasUnidades} />
+
+              {/* Layout em Grid: Estatísticas à esquerda, Lista de Centros à direita */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                {/* Coluna de Indicadores Estatísticos (Ocupa 2 blocos) */}
+                <div className="lg:col-span-2 space-y-6">
+                  
+                  {/* Card de Destaque Numérico */}
+                  <div className="bg-[#0f2a4a] text-white p-6 rounded-xl shadow-md flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-medium uppercase tracking-wider text-blue-200">Adolescentes Atendidos</h3>
+                      <p className="text-xs text-blue-100 mt-0.5">Filtrado com base na seleção atual</p>
+                    </div>
+                    <span className="text-5xl font-extrabold tracking-tight">{estatisticas.total}</span>
+                  </div>
+
+                  {/* Grid de Blocos Temáticos dos 6 Indicadores Obrigatórios */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    
+                    {/* Bloco 1: Gênero */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Gênero</h4>
+                      {Object.entries(estatisticas.genero).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
                       ))}
-                      {unidadesComContagem.length === 0 && (
-                        <tr>
-                          <td colSpan={2} className="px-6 py-4 text-center text-sm text-gray-500">Nenhuma unidade cadastrada.</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                    </div>
 
+                    {/* Bloco 2: Situação Processual */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Processual</h4>
+                      {Object.entries(estatisticas.situacao).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                      ))}
+                    </div>
+
+                    {/* Bloco 3: Faixa Etária */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Faixa Etária</h4>
+                      {Object.entries(estatisticas.faixaEtaria).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                      ))}
+                    </div>
+
+                    {/* Bloco 4: Raça / Cor */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Raça / Cor</h4>
+                      {Object.entries(estatisticas.racaCor).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                      ))}
+                    </div>
+
+                    {/* Bloco 5: Religião */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Religião</h4>
+                      {Object.entries(estatisticas.religiao).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                      ))}
+                    </div>
+
+                    {/* Bloco 6: Orientação Sexual */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Orientação Sexual</h4>
+                      {Object.entries(estatisticas.orientacao).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                      ))}
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Coluna da Direita: Lista de Unidades e seus Totais Fixos */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-bold text-[#0f2a4a]">Internos por Unidade</h3>
+                  <div className="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100 overflow-hidden">
+                    {tabelaUnidades.map((u) => (
+                      <div key={u.nome} className="px-4 py-3.5 flex justify-between items-center hover:bg-gray-50 transition-colors">
+                        <span className="text-sm font-medium text-gray-900 pr-2">{u.nome}</span>
+                        <span className="text-sm font-bold text-[#0f2a4a] bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-md shadow-inner">
+                          {u.quantidade}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
             </div>
           ) : (
             <div>
