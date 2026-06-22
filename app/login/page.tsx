@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { loginAction } from "./actions";
+import Image from "next/image";
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
@@ -25,13 +26,21 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg border border-gray-100">
         
-        {/* Cabeçalho Institucional do Login */}
-        <div className="text-center">
-          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+        {/* Cabeçalho Institucional do Login com a Logo */}
+        <div className="text-center flex flex-col items-center">
+          <Image 
+            src="/logo.png" 
+            alt="Logomarca FASE/MA" 
+            width={180} 
+            height={180} 
+            className="mb-2 drop-shadow-md"
+            priority
+          />
+          <h2 className="mt-4 text-3xl font-extrabold text-gray-900">
             Sistema Central
           </h2>
           <p className="mt-2 text-sm font-semibold text-gray-700">
-            FUNDAÇÃO DE ATENDIMENTO SOCIOEDUCATIVO DO MARANHÃO (FASE/MA)
+            FUNDAÇÃO DE ATENDIMENTO SOCIOEDUCATIVO DO MARANHÃO
           </p>
           <p className="mt-4 text-sm text-gray-500">
             Faça login com as suas credenciais para aceder ao painel da sua unidade ou à gestão central.
@@ -46,12 +55,10 @@ export default function LoginPage() {
         )}
 
         {/* Formulário */}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="email-address" className="sr-only">
-                E-mail
-              </label>
+              <label htmlFor="email-address" className="sr-only">E-mail</label>
               <input
                 id="email-address"
                 name="email"
@@ -64,9 +71,7 @@ export default function LoginPage() {
               />
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">
-                Senha
-              </label>
+              <label htmlFor="password" className="sr-only">Senha</label>
               <input
                 id="password"
                 name="password"
@@ -84,7 +89,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-600 transition-colors disabled:bg-blue-400"
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-[#0f2a4a] hover:bg-[#1a3a6a] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#0f2a4a] transition-colors disabled:bg-gray-400"
             >
               {loading ? "A verificar dados..." : "Entrar no Sistema"}
             </button>
