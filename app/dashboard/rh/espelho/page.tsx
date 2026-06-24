@@ -138,4 +138,3 @@ export default async function EspelhoPontoPDF({ searchParams }: PageProps) {
       </div>
     </div>
   );
-}
