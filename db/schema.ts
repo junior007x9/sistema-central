@@ -1,5 +1,9 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 
+// ==========================================
+// MÓDULO: GESTÃO SOCIOEDUCATIVA E UNIDADES
+// ==========================================
+
 export const centers = sqliteTable('centers', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -32,19 +36,27 @@ export const atendimentos = sqliteTable('atendimentos', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
-export const auditLogs = sqliteTable('audit_logs', {
+// ==========================================
+// NOVO MÓDULO: PIA (Prontuário Evolutivo)
+// ==========================================
+export const evolucoesPia = sqliteTable('evolucoes_pia', {
   id: text('id').primaryKey(),
-  entidade: text('entidade').notNull(),
-  acao: text('acao').notNull(),
-  detalhe: text('detalhe').notNull(),
-  observacao: text('observacao').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+  atendimentoId: text('atendimento_id').notNull().references(() => atendimentos.id),
+  autor: text('autor').notNull(), // Nome do profissional
+  tipo: text('tipo', { enum: ['PSICOLOGIA', 'SERVIÇO SOCIAL', 'SAÚDE', 'PEDAGOGIA', 'JURÍDICO', 'SEGURANÇA'] }).notNull(),
+  relato: text('relato').notNull(),
+  dataRegistro: integer('data_registro', { mode: 'timestamp' }).notNull(),
 });
+
+
+// ==========================================
+// MÓDULO: RH, PONTO REP-P E ESCALAS
+// ==========================================
 
 export const servidores = sqliteTable('servidores', {
   id: text('id').primaryKey(),
   cpf: text('cpf').notNull().unique(),
-  senha: text('senha').notNull().default('fase123'), // NOVO CAMPO: Senha de Acesso do Servidor
+  senha: text('senha').notNull().default('fase123'),
   nome: text('nome').notNull(),
   cargo: text('cargo').notNull(),
   centerId: text('center_id').notNull().references(() => centers.id),
@@ -67,4 +79,22 @@ export const pontos = sqliteTable('pontos', {
   justificativaRH: text('justificativa_rh'),
   atestadoAnexo: text('atestado_anexo'),
   assinaturaDigitalComprovante: text('assinatura_digital_comprovante'),
+});
+
+// NOVO MÓDULO: Escalas de Plantão do RH
+export const escalasPlantao = sqliteTable('escalas_plantao', {
+  id: text('id').primaryKey(),
+  servidorId: text('servidor_id').notNull().references(() => servidores.id),
+  centerId: text('center_id').notNull().references(() => centers.id),
+  dataPlantao: text('data_plantao').notNull(), // Formato YYYY-MM-DD
+  turno: text('turno', { enum: ['DIA (07h-19h)', 'NOITE (19h-07h)', 'EXPEDIENTE'] }).notNull(),
+});
+
+export const auditLogs = sqliteTable('audit_logs', {
+  id: text('id').primaryKey(),
+  entidade: text('entidade').notNull(),
+  acao: text('acao').notNull(),
+  detalhe: text('detalhe').notNull(),
+  observacao: text('observacao').notNull(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
