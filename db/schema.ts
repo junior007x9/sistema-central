@@ -46,27 +46,34 @@ export const auditLogs = sqliteTable('audit_logs', {
 });
 
 // ==========================================
-// NOVO MÓDULO: RECURSOS HUMANOS E PONTO
+// MÓDULO: RECURSOS HUMANOS E PONTO COMPLIANT (PORTARIA 671)
 // ==========================================
 
-// Tabela de Cadastro de Funcionários
 export const servidores = sqliteTable('servidores', {
   id: text('id').primaryKey(),
-  cpf: text('cpf').notNull().unique(), // O CPF será a matrícula principal
+  cpf: text('cpf').notNull().unique(),
   nome: text('nome').notNull(),
-  cargo: text('cargo').notNull(), // Ex: Monitor, Assistente Social, Psicólogo
-  centerId: text('center_id').notNull().references(() => centers.id), // Onde ele trabalha
-  biometriaHash: text('biometria_hash'), // Campo preparado para receber o código do leitor biométrico
+  cargo: text('cargo').notNull(),
+  centerId: text('center_id').notNull().references(() => centers.id),
+  escala: text('escala').notNull().default('5x2 - Administrativo'), // Ex: 12x36, 6x1, 5x2
+  pis: text('pis').notNull().default('00000000000'), // Obrigatório para o arquivo fiscal AFD
   status: text('status', { enum: ['ATIVO', 'INATIVO'] }).notNull().default('ATIVO'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
-// Tabela do Relógio de Ponto Eletrônico
 export const pontos = sqliteTable('pontos', {
   id: text('id').primaryKey(),
   servidorId: text('servidor_id').notNull().references(() => servidores.id),
-  centerId: text('center_id').notNull().references(() => centers.id), // Registra onde o ponto foi batido
+  centerId: text('center_id').notNull().references(() => centers.id),
   tipo: text('tipo', { enum: ['ENTRADA', 'SAIDA'] }).notNull(),
-  dataHora: integer('data_hora', { mode: 'timestamp' }).notNull(), // O momento exato (milissegundos)
-  fotoSnapshot: text('foto_snapshot'), // Opcional: Se quisermos usar a câmera do tablet para tirar foto na hora do ponto
+  dataHora: integer('data_hora', { mode: 'timestamp' }).notNull(),
+  
+  // Recursos Avançados de Segurança e Tratamento (Portaria 671 / DP)
+  latitude: text('latitude'),
+  longitude: text('longitude'),
+  modoOffline: integer('modo_offline').notNull().default(0), // 0 = Online, 1 = Offline Sincronizado
+  statusPonto: text('status_ponto', { enum: ['NORMAL', 'JUSTIFICADO', 'ABONO'] }).notNull().default('NORMAL'),
+  justificativaRH: text('justificativa_rh'), // Motivo do tratamento de ponto pelo RH
+  atestadoAnexo: text('atestado_anexo'), // Link ou string base64 do documento anexado
+  assinaturaDigitalComprovante: text('assinatura_digital_comprovante'), // Hash de autenticidade (REP-P)
 });
