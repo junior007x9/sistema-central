@@ -34,11 +34,13 @@ export default async function EspelhoPontoPDF({ searchParams }: PageProps) {
   return (
     <div className="bg-gray-100 min-h-screen p-8 print:p-0 print:bg-white flex justify-center text-black">
       
-      {/* Botão Flutuante de Impressão (Fica escondido na hora de imprimir graças à classe print:hidden) */}
-      <button 
-        onClick="window.print()" 
-        className="print:hidden fixed bottom-10 right-10 bg-[#0f2a4a] text-white px-8 py-4 rounded-full shadow-2xl font-black text-lg hover:bg-blue-800 transition-transform active:scale-95 z-50 flex items-center gap-2"
-        dangerouslySetInnerHTML={{ __html: `<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> Gerar PDF Oficial` }}
+      {/* Botão Flutuante de Impressão (Solução compatível com Server Components) */}
+      <div 
+        dangerouslySetInnerHTML={{ 
+          __html: `<button onclick="window.print()" class="print:hidden fixed bottom-10 right-10 bg-[#0f2a4a] text-white px-8 py-4 rounded-full shadow-2xl font-black text-lg hover:bg-blue-800 transition-transform active:scale-95 z-50 flex items-center gap-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg> Gerar PDF Oficial
+          </button>` 
+        }} 
       />
 
       {/* A Folha A4 em si (Estilização rígida para PDF) */}
