@@ -1,58 +1,64 @@
 "use server";
 
-import { db } from "../../../db";
-import { servidores, pontos } from "../../../db/schema";
-import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { db } from "../../db";
+import { atendimentos } from "../../db/schema";
+import { decrypt } from "../../lib/session";
 
-// Função aprimorada para aceitar datas retroativas (offline) e marcar a flag fiscal
-export async function registrarPontoAction(
-  cpf: string, 
-  tipo: "ENTRADA" | "SAIDA", 
-  centerId: string, 
-  dataHoraStr?: string, 
-  foiOffline: boolean = false
-) {
-  if (!cpf) return { error: "O CPF/Matrícula é obrigatório." };
-
-  const servidorQuery = await db.select().from(servidores).where(eq(servidores.cpf, cpf));
-  const servidor = servidorQuery[0];
-
-  if (!servidor) return { error: "Servidor não encontrado na base de dados." };
-  if (servidor.status !== "ATIVO") return { error: "Servidor inativo no sistema." };
-  if (servidor.centerId !== centerId) return { error: "Este servidor pertence a outra unidade." };
-
-  // Se veio do modo offline, usa a hora exata que estava no tablet; senão, usa a hora real do servidor
-  const dataHoraRegistro = dataHoraStr ? new Date(dataHoraStr) : new Date();
-
-  await db.insert(pontos).values({
-    id: crypto.randomUUID(),
-    servidorId: servidor.id,
-    centerId: centerId,
-    tipo: tipo,
-    dataHora: dataHoraRegistro,
-    modoOffline: foiOffline ? 1 : 0, // Flag fiscal da Portaria 671
-    statusPonto: "NORMAL"
-  });
-
-  return { 
-    success: true, 
-    mensagem: `${tipo} registrada com sucesso!`, 
-    servidorNome: servidor.nome 
-  };
+export async function logoutAction() {
+  const cookieStore = await cookies();
+  cookieStore.delete("session");
+  redirect("/login");
 }
 
-// Nova função para receber a carga do LocalStorage do Tablet
-export async function sincronizarPontosOfflineAction(pontosPendentes: any[]) {
-  let sincronizados = 0;
-  
-  for (const p of pontosPendentes) {
-    try {
-      const result = await registrarPontoAction(p.cpf, p.tipo, p.centerId, p.dataHora, true);
-      if (result.success) sincronizados++;
-    } catch (e) {
-      console.error("Erro ao sincronizar ponto:", e);
-    }
+export async function submitAtendimentoAction(formData: FormData) {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("session")?.value;
+
+  if (!sessionCookie) return { error: "Não autorizado." };
+
+  const session = await decrypt(sessionCookie);
+
+  if (session.role !== "UNIT" || !session.centerId) {
+    return { error: "Apenas unidades podem registrar atendimentos." };
   }
 
-  return { success: true, count: sincronizados };
+  // Pegando os dados do adolescente
+  const genero = formData.get("genero") as string;
+  const racaCor = formData.get("racaCor") as string;
+  const faixaEtaria = formData.get("faixaEtaria") as string;
+  const situacaoProcessual = formData.get("situacaoProcessual") as string;
+  const religiao = formData.get("religiao") as string;
+  const orientacaoSexual = formData.get("orientacaoSexual") as string;
+  const municipioMoradia = formData.get("municipioMoradia") as string;
+  const municipioOcorrencia = formData.get("municipioOcorrencia") as string;
+  
+  const ultimoAnoEscolar = formData.get("ultimoAnoEscolar") as string;
+  const situacaoEscolar = formData.get("situacaoEscolar") as string;
+  const motivoNaoFrequenta = formData.get("motivoNaoFrequenta") as string;
+
+  if (!genero || !racaCor || !municipioMoradia) {
+    return { error: "Preencha todos os campos obrigatórios." };
+  }
+
+  // Salvando no banco
+  await db.insert(atendimentos).values({
+    id: crypto.randomUUID(),
+    centerId: session.centerId,
+    genero,
+    racaCor,
+    faixaEtaria,
+    situacaoProcessual,
+    religiao,
+    orientacaoSexual,
+    municipioMoradia,
+    municipioOcorrencia,
+    ultimoAnoEscolar,
+    situacaoEscolar,
+    motivoNaoFrequenta,
+    createdAt: new Date(),
+  });
+
+  return { success: true };
 }

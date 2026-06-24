@@ -4,32 +4,33 @@ import { db } from "../../../db";
 import { servidores, pontos } from "../../../db/schema";
 import { eq } from "drizzle-orm";
 
-export async function registrarPontoAction(cpf: string, tipo: "ENTRADA" | "SAIDA", centerId: string) {
+export async function registrarPontoAction(
+  cpf: string, 
+  tipo: "ENTRADA" | "SAIDA", 
+  centerId: string, 
+  dataHoraStr?: string, 
+  foiOffline: boolean = false
+) {
   if (!cpf) return { error: "O CPF/Matrícula é obrigatório." };
 
-  // 1. Buscar o servidor pelo CPF
   const servidorQuery = await db.select().from(servidores).where(eq(servidores.cpf, cpf));
   const servidor = servidorQuery[0];
 
-  if (!servidor) {
-    return { error: "Servidor não encontrado. Procure o RH." };
-  }
+  if (!servidor) return { error: "Servidor não encontrado na base de dados." };
+  if (servidor.status !== "ATIVO") return { error: "Servidor inativo no sistema." };
+  if (servidor.centerId !== centerId) return { error: "Este servidor pertence a outra unidade." };
 
-  if (servidor.status !== "ATIVO") {
-    return { error: "Servidor inativo no sistema." };
-  }
+  // Se veio do modo offline, usa a hora exata que estava no tablet; senão, usa a hora real do servidor
+  const dataHoraRegistro = dataHoraStr ? new Date(dataHoraStr) : new Date();
 
-  if (servidor.centerId !== centerId) {
-    return { error: "Este servidor pertence a outra unidade." };
-  }
-
-  // 2. Registrar o ponto
   await db.insert(pontos).values({
     id: crypto.randomUUID(),
     servidorId: servidor.id,
     centerId: centerId,
     tipo: tipo,
-    dataHora: new Date(),
+    dataHora: dataHoraRegistro,
+    modoOffline: foiOffline ? 1 : 0, // Flag fiscal da Portaria 671
+    statusPonto: "NORMAL"
   });
 
   return { 
@@ -37,4 +38,19 @@ export async function registrarPontoAction(cpf: string, tipo: "ENTRADA" | "SAIDA
     mensagem: `${tipo} registrada com sucesso!`, 
     servidorNome: servidor.nome 
   };
+}
+
+export async function sincronizarPontosOfflineAction(pontosPendentes: any[]) {
+  let sincronizados = 0;
+  
+  for (const p of pontosPendentes) {
+    try {
+      const result = await registrarPontoAction(p.cpf, p.tipo, p.centerId, p.dataHora, true);
+      if (result.success) sincronizados++;
+    } catch (e) {
+      console.error("Erro ao sincronizar ponto:", e);
+    }
+  }
+
+  return { success: true, count: sincronizados };
 }
