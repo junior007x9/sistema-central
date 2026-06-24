@@ -1,13 +1,15 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
 
-// 1. Tabela de Centros/Unidades
+// ==========================================
+// MÓDULO: GESTÃO SOCIOEDUCATIVA E UNIDADES
+// ==========================================
+
 export const centers = sqliteTable('centers', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
-// 2. Tabela de Usuários
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   email: text('email').notNull().unique(),
@@ -17,8 +19,6 @@ export const users = sqliteTable('users', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
-// 3. Tabela de Cadastro Individual (Atendimento)
-// 3. Tabela de Cadastro Individual (Atendimento)
 export const atendimentos = sqliteTable('atendimentos', {
   id: text('id').primaryKey(),
   centerId: text('center_id').notNull().references(() => centers.id),
@@ -30,21 +30,43 @@ export const atendimentos = sqliteTable('atendimentos', {
   orientacaoSexual: text('orientacao_sexual').notNull(),
   municipioMoradia: text('municipio_moradia').notNull(),
   municipioOcorrencia: text('municipio_ocorrencia').notNull(),
-  
-  // NOVAS COLUNAS DE ESCOLARIZAÇÃO
   ultimoAnoEscolar: text('ultimo_ano_escolar').notNull().default('Não Informado'),
   situacaoEscolar: text('situacao_escolar').notNull().default('Sem informação'),
   motivoNaoFrequenta: text('motivo_nao_frequenta').notNull().default('Sem informação'),
-  
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
-// 4. NOVA Tabela: Histórico de Auditoria (Guarda o "Por que" de cada alteração)
 export const auditLogs = sqliteTable('audit_logs', {
   id: text('id').primaryKey(),
-  entidade: text('entidade').notNull(), // Ex: 'USUARIO' ou 'UNIDADE'
-  acao: text('acao').notNull(), // Ex: 'CRIAR', 'EDITAR', 'EXCLUIR'
-  detalhe: text('detalhe').notNull(), // Ex: O nome da unidade ou email afetado
-  observacao: text('observacao').notNull(), // A sua justificativa obrigatória
+  entidade: text('entidade').notNull(),
+  acao: text('acao').notNull(),
+  detalhe: text('detalhe').notNull(),
+  observacao: text('observacao').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+// ==========================================
+// NOVO MÓDULO: RECURSOS HUMANOS E PONTO
+// ==========================================
+
+// Tabela de Cadastro de Funcionários
+export const servidores = sqliteTable('servidores', {
+  id: text('id').primaryKey(),
+  cpf: text('cpf').notNull().unique(), // O CPF será a matrícula principal
+  nome: text('nome').notNull(),
+  cargo: text('cargo').notNull(), // Ex: Monitor, Assistente Social, Psicólogo
+  centerId: text('center_id').notNull().references(() => centers.id), // Onde ele trabalha
+  biometriaHash: text('biometria_hash'), // Campo preparado para receber o código do leitor biométrico
+  status: text('status', { enum: ['ATIVO', 'INATIVO'] }).notNull().default('ATIVO'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+// Tabela do Relógio de Ponto Eletrônico
+export const pontos = sqliteTable('pontos', {
+  id: text('id').primaryKey(),
+  servidorId: text('servidor_id').notNull().references(() => servidores.id),
+  centerId: text('center_id').notNull().references(() => centers.id), // Registra onde o ponto foi batido
+  tipo: text('tipo', { enum: ['ENTRADA', 'SAIDA'] }).notNull(),
+  dataHora: integer('data_hora', { mode: 'timestamp' }).notNull(), // O momento exato (milissegundos)
+  fotoSnapshot: text('foto_snapshot'), // Opcional: Se quisermos usar a câmera do tablet para tirar foto na hora do ponto
 });

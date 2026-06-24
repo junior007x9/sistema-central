@@ -30,7 +30,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // Lendo os parâmetros de filtro da URL de forma assíncrona
   const { centerId } = await searchParams;
 
-  // Estrutura completa dos contadores estatísticos dos 6 tópicos obrigatórios
+  // Estrutura completa dos contadores estatísticos (agora com Escolarização)
   const estatisticas = {
     total: 0,
     genero: { Masculino: 0, Feminino: 0, Outros: 0 },
@@ -38,7 +38,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     faixaEtaria: { "12 a 13 anos": 0, "14 a 15 anos": 0, "16 a 17 anos": 0, "18 a 21 anos": 0 },
     situacao: { Primário: 0, Reincidente: 0, Reiterante: 0 },
     religiao: { Católica: 0, Evangélica: 0, "Matriz Africana": 0, "Sem Religião": 0, Outras: 0 },
-    orientacao: { Heterossexual: 0, Homossexual: 0, Bissexual: 0, Outros: 0, "Não Informado": 0 }
+    orientacao: { Heterossexual: 0, Homossexual: 0, Bissexual: 0, Outros: 0, "Não Informado": 0 },
+    ultimoAno: { "6º E.F": 0, "7º E.F": 0, "8º E.F": 0, "9º E.F": 0, "1ª E.M": 0, "2ª E.M": 0, "3ª E.M": 0, "EJA E.F": 0, "EJA E.M": 0, "Não Informado": 0, Outros: 0 },
+    sitEscolar: { "Está matriculado e frequentando": 0, "Está matriculado e não frequentando": 0, "Não está matriculado": 0, "Nunca foi matriculado": 0, "Sem informação": 0 },
+    motivoEscola: { "Não se aplica (Frequenta a escola)": 0, "Envolvimento na prática infracional": 0, "Falta de interesse": 0, "Desacompanhamento familiar": 0, "Desestímulo escolar": 0, "Uso de substâncias": 0, Trabalho: 0, "Mudança de estado/município": 0, "Ameaça de facções": 0, "Sem informação": 0, Outros: 0 }
   };
 
   let todasUnidades: { id: string; name: string }[] = [];
@@ -70,6 +73,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       if (a.situacaoProcessual in estatisticas.situacao) estatisticas.situacao[a.situacaoProcessual as keyof typeof estatisticas.situacao]++;
       if (a.religiao in estatisticas.religiao) estatisticas.religiao[a.religiao as keyof typeof estatisticas.religiao]++;
       if (a.orientacaoSexual in estatisticas.orientacao) estatisticas.orientacao[a.orientacaoSexual as keyof typeof estatisticas.orientacao]++;
+      
+      // Contabilizando Escolaridade
+      if (a.ultimoAnoEscolar in estatisticas.ultimoAno) estatisticas.ultimoAno[a.ultimoAnoEscolar as keyof typeof estatisticas.ultimoAno]++;
+      if (a.situacaoEscolar in estatisticas.sitEscolar) estatisticas.sitEscolar[a.situacaoEscolar as keyof typeof estatisticas.sitEscolar]++;
+      if (a.motivoNaoFrequenta in estatisticas.motivoEscola) estatisticas.motivoEscola[a.motivoNaoFrequenta as keyof typeof estatisticas.motivoEscola]++;
     });
 
     // Monta a listagem lateral de centros com a quantidade de internos de cada um
@@ -111,6 +119,14 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200 shadow-inner hidden sm:inline-block">
             Perfil: <span className="font-medium">{session.role}</span>
           </span>
+
+          {/* Botão de Totem APENAS para a UNIDADE */}
+          {session.role === "UNIT" && (
+            <a href="/dashboard/totem" className="text-sm font-bold text-[#0f2a4a] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-4 py-1.5 rounded-lg transition-colors shadow-sm flex items-center">
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              Abrir Totem de Ponto
+            </a>
+          )}
           
           {/* Botão de Gerenciamento APENAS para o Administrador */}
           {session.role === "ADMIN" && (
@@ -158,7 +174,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     <span className="text-5xl font-extrabold tracking-tight">{estatisticas.total}</span>
                   </div>
 
-                  {/* Grid de Blocos Temáticos dos 6 Indicadores Obrigatórios */}
+                  {/* Grid de Blocos Temáticos dos Indicadores */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
                     {/* Bloco 1: Gênero */}
@@ -207,6 +223,33 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                       {Object.entries(estatisticas.orientacao).map(([k, v]) => (
                         <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
                       ))}
+                    </div>
+
+                    {/* NOVOS BLOCOS DE ESCOLARIDADE */}
+                    {/* Bloco 7: Último Ano Escolar */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Último Ano Escolar</h4>
+                      {Object.entries(estatisticas.ultimoAno).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                      ))}
+                    </div>
+                    
+                    {/* Bloco 8: Situação Escolar */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Escolar</h4>
+                      {Object.entries(estatisticas.sitEscolar).map(([k, v]) => (
+                        <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                      ))}
+                    </div>
+                    
+                    {/* Bloco 9: Motivo (Se não frequenta) */}
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3 col-span-1 md:col-span-2">
+                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Motivo de Não Frequência Escolar</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
+                        {Object.entries(estatisticas.motivoEscola).map(([k, v]) => (
+                          <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />
+                        ))}
+                      </div>
                     </div>
 
                   </div>
