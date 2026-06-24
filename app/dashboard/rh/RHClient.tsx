@@ -62,7 +62,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       
-      {/* Abas e Barra de Filtro Unificado por Unidade do Estado */}
+      {/* Abas e Barra de Filtro Unificado */}
       <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-col lg:flex-row justify-between items-center gap-4">
         <div className="flex flex-wrap gap-2">
           <button onClick={() => setActiveTab("SERVIDORES")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "SERVIDORES" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Quadro de Servidores</button>
@@ -89,32 +89,39 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
               <h3 className="text-lg font-bold text-gray-800">Quadro Corporativo FASE/MA</h3>
               <button onClick={() => { setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="bg-[#0f2a4a] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#1a3a6a]">+ Cadastrar Servidor</button>
             </div>
-            <table className="min-w-full divide-y divide-gray-200 border text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Nome</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">CPF / PIS</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Cargo</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Escala Regular</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Status</th>
-                  <th className="px-6 py-3 text-right font-bold text-gray-500 uppercase">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {servidores.filter((s:any) => !filtroUnidade || s.centerId === filtroUnidade).map((s: any) => (
-                  <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 font-bold text-gray-900">{s.nome}</td>
-                    <td className="px-6 py-4 font-mono text-gray-500">CPF: {s.cpf}<br/>PIS: {s.pis || 'Não cadastrado'}</td>
-                    <td className="px-6 py-4 text-gray-900">{s.cargo}</td>
-                    <td className="px-6 py-4 text-gray-600 font-medium">{s.escala}</td>
-                    <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
-                    <td className="px-6 py-4 text-right space-x-2">
-                      <button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold">Editar</button>
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 border text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Nome</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">CPF / PIS</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Cargo</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Escala Regular</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-right font-bold text-gray-500 uppercase">Ações</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {servidores.filter((s:any) => !filtroUnidade || s.centerId === filtroUnidade).map((s: any) => (
+                    <tr key={s.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 font-bold text-gray-900">{s.nome}</td>
+                      <td className="px-6 py-4 font-mono text-gray-500">CPF: {s.cpf}<br/>PIS: {s.pis || 'Não cadastrado'}</td>
+                      <td className="px-6 py-4 text-gray-900">{s.cargo}</td>
+                      <td className="px-6 py-4 text-gray-600 font-medium">{s.escala}</td>
+                      <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
+                      <td className="px-6 py-4 text-right space-x-4">
+                        <button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold">Editar</button>
+                        {/* NOVO BOTÃO DE GERAR PDF DO ESPELHO */}
+                        <a href={`/dashboard/rh/espelho?servidorId=${s.id}`} target="_blank" className="text-green-700 hover:text-green-900 hover:underline font-bold inline-flex items-center gap-1">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                          Espelho PDF
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -122,41 +129,43 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         {activeTab === "ESPELHO" && (
           <div>
             <h3 className="text-lg font-bold text-gray-800 mb-4">Tratamento de Ponto Eletrônico Auditado</h3>
-            <table className="min-w-full divide-y divide-gray-200 border text-sm">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Marcação Original</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Servidor</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Evento</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Geolocalização / Segurança</th>
-                  <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Status do Ponto</th>
-                  <th className="px-6 py-3 text-right font-bold text-gray-500 uppercase">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {pontos.filter((p:any) => !filtroUnidade || p.centerId === filtroUnidade).map((p: any) => {
-                  const servidor = servidores.find((s:any) => s.id === p.servidorId);
-                  return (
-                    <tr key={p.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-mono font-bold text-[#0f2a4a]">{new Date(p.dataHora).toLocaleString('pt-BR')}</td>
-                      <td className="px-6 py-4 font-medium">{servidor?.nome || 'Desconhecido'}</td>
-                      <td className="px-6 py-4"><span className={`px-2 py-0.5 rounded text-xs font-bold ${p.tipo === 'ENTRADA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{p.tipo}</span></td>
-                      <td className="px-6 py-4 text-xs font-medium text-gray-500">
-                        {p.latitude ? `Lat: ${p.latitude}, Long: ${p.longitude}` : "Dispositivo Fixo (Tablet)"}
-                        {p.modoOffline === 1 && <span className="block text-amber-600 font-bold">⚠️ Sincronizado Offline</span>}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded text-xs font-bold ${p.statusPonto === 'NORMAL' ? 'bg-gray-100 text-gray-700' : p.statusPonto === 'ABONO' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{p.statusPonto}</span>
-                        {p.justificativaRH && <p className="text-xs text-gray-500 mt-1 italic">Obs RH: {p.justificativaRH}</p>}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button onClick={() => { setSelectedItem(p); setModalType("TRATAR_PONTO"); setIsModalOpen(true); }} className="text-amber-700 hover:underline font-bold">Ajustar / Abonar</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 border text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Marcação Original</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Servidor</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Evento</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Geolocalização / Segurança</th>
+                    <th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Status do Ponto</th>
+                    <th className="px-6 py-3 text-right font-bold text-gray-500 uppercase">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {pontos.filter((p:any) => !filtroUnidade || p.centerId === filtroUnidade).map((p: any) => {
+                    const servidor = servidores.find((s:any) => s.id === p.servidorId);
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 font-mono font-bold text-[#0f2a4a]">{new Date(p.dataHora).toLocaleString('pt-BR')}</td>
+                        <td className="px-6 py-4 font-medium">{servidor?.nome || 'Desconhecido'}</td>
+                        <td className="px-6 py-4"><span className={`px-2 py-0.5 rounded text-xs font-bold ${p.tipo === 'ENTRADA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{p.tipo}</span></td>
+                        <td className="px-6 py-4 text-xs font-medium text-gray-500">
+                          {p.latitude ? `Lat: ${p.latitude}, Long: ${p.longitude}` : "Dispositivo Fixo (Tablet)"}
+                          {p.modoOffline === 1 && <span className="block text-amber-600 font-bold">⚠️ Sincronizado Offline</span>}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${p.statusPonto === 'NORMAL' ? 'bg-gray-100 text-gray-700' : p.statusPonto === 'ABONO' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-800'}`}>{p.statusPonto}</span>
+                          {p.justificativaRH && <p className="text-xs text-gray-500 mt-1 italic">Obs RH: {p.justificativaRH}</p>}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button onClick={() => { setSelectedItem(p); setModalType("TRATAR_PONTO"); setIsModalOpen(true); }} className="text-amber-700 hover:underline font-bold">Ajustar / Abonar</button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -186,22 +195,18 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           </div>
         )}
 
-        {/* TAB 4: FISCALIZAÇÃO - PORTARIA 671 MTE (EMISSÃO AFD) */}
+        {/* TAB 4: FISCALIZAÇÃO - PORTARIA 671 MTE */}
         {activeTab === "FISCAL" && (
           <div className="max-w-2xl bg-amber-50 border border-amber-200 rounded-xl p-6 space-y-4">
             <div className="flex items-start space-x-3">
               <div className="p-2 bg-amber-600 text-white rounded-lg font-bold">671</div>
               <div>
                 <h3 className="font-bold text-amber-900 text-lg">Módulo Fiscal de Auditoria Trabalhista</h3>
-                <p className="text-sm text-amber-800">
-                  Em conformidade estrita com as exigências técnicas da Portaria 671 do Ministério do Trabalho e Emprego para sistemas de ponto REP-P em nuvem.
-                </p>
+                <p className="text-sm text-amber-800">Em conformidade estrita com as exigências técnicas da Portaria 671 do Ministério do Trabalho e Emprego para sistemas de ponto REP-P em nuvem.</p>
               </div>
             </div>
             <div className="border-t border-amber-200 pt-4 space-y-3">
-              <p className="text-xs text-gray-600 font-medium">
-                O arquivo gerado abaixo contém o histórico imutável das marcações eletrônicas com o NSR (Número Seqüencial de Registro) e formatação exata para validação imediata do auditor fiscal do trabalho.
-              </p>
+              <p className="text-xs text-gray-600 font-medium">O arquivo gerado abaixo contém o histórico imutável das marcações eletrônicas com o NSR (Número Seqüencial de Registro).</p>
               <button onClick={baixarArquivoAFD} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm px-5 py-2.5 rounded-lg transition-colors shadow shadow-amber-700/20">
                 Gerar e Baixar Arquivo AFD (.TXT)
               </button>
