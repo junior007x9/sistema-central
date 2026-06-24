@@ -1,6 +1,6 @@
 // app/dashboard/pia/[id]/page.tsx
-import { db } from "../../../../../db";
-import { atendimentos, evolucoesPia } from "../../../../../db/schema";
+import { db } from "../../../../db";
+import { atendimentos, evolucoesPia } from "../../../../db/schema";
 import { eq, desc } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
