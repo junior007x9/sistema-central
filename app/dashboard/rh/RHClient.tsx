@@ -1,22 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { salvarServidorAction, tratarPontoAction, gerarArquivoAFDAction } from "./actions";
+// Importamos agora as ações de Escala (salvarPlantaoAction e listarEscalasAction)
+import { salvarServidorAction, tratarPontoAction, gerarArquivoAFDAction, salvarPlantaoAction, listarEscalasAction } from "./actions";
 
 type Tab = "INDICADORES" | "SERVIDORES" | "ESPELHO" | "ESCALAS" | "FISCAL";
 
 export default function RHClient({ unidades, servidores, pontos }: any) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("INDICADORES"); // Agora a aba padrão é o Dashboard
+  const [activeTab, setActiveTab] = useState<Tab>("INDICADORES");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [filtroUnidade, setFiltroUnidade] = useState("");
 
+  // NOVO: Estado para guardar os plantões e escalas
+  const [escalasCadastradas, setEscalasCadastradas] = useState<any[]>([]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState<"MANUTENCAO_SERVIDOR" | "TRATAR_PONTO" | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  // NOVO: Busca as escalas do banco de dados quando a tela carrega
+  useEffect(() => {
+    listarEscalasAction().then(setEscalasCadastradas);
+  }, []);
 
   function closeModal() {
     setIsModalOpen(false);
@@ -45,6 +54,23 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     setLoading(false);
   }
 
+  // NOVO: Função para salvar um plantão
+  async function handlePlantaoSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setLoading(true);
+    const formData = new FormData(e.currentTarget);
+    const result = await salvarPlantaoAction(formData);
+    if (result?.error) {
+      alert(result.error);
+    } else {
+      // Recarrega as escalas na tela instantaneamente
+      const novasEscalas = await listarEscalasAction();
+      setEscalasCadastradas(novasEscalas);
+      (e.target as HTMLFormElement).reset(); // Limpa o formulário
+    }
+    setLoading(false);
+  }
+
   async function baixarArquivoAFD() {
     const result = await gerarArquivoAFDAction(filtroUnidade || undefined);
     if (result?.success && result.conteudo) {
@@ -62,12 +88,9 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   // ==========================================
   // LÓGICA DO DASHBOARD DE INDICADORES DO RH
   // ==========================================
-  
-  // 1. Aplica o filtro de unidade nos dados
   const servs = servidores.filter((s:any) => !filtroUnidade || s.centerId === filtroUnidade);
   const pts = pontos.filter((p:any) => !filtroUnidade || p.centerId === filtroUnidade);
 
-  // 2. Cálculos Numéricos
   const totalAtivos = servs.filter((s:any) => s.status === 'ATIVO').length;
   const hojeStr = new Date().toDateString();
   const ptsHoje = pts.filter((p:any) => new Date(p.dataHora).toDateString() === hojeStr).length;
@@ -77,13 +100,11 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   const ptsAbonos = pts.filter((p:any) => p.statusPonto === 'ABONO').length;
   const totalPts = pts.length;
 
-  // 3. Agrupamento de Escalas de Trabalho
   const contagemEscalas = servs.reduce((acc: any, s:any) => {
     acc[s.escala] = (acc[s.escala] || 0) + 1;
     return acc;
   }, {});
 
-  // Componente Visual de Barra de Progresso do RH
   const ProgressBar = ({ label, valor, total, color }: { label: string; valor: number; total: number, color: string }) => {
     const porcentagem = total > 0 ? Math.round((valor / total) * 100) : 0;
     return (
@@ -108,7 +129,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           <button onClick={() => setActiveTab("INDICADORES")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "INDICADORES" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Indicadores e Painel</button>
           <button onClick={() => setActiveTab("SERVIDORES")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "SERVIDORES" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Quadro de Servidores</button>
           <button onClick={() => setActiveTab("ESPELHO")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESPELHO" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Espelho de Ponto</button>
-          <button onClick={() => setActiveTab("ESCALAS")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESCALAS" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Cálculos e Escalas</button>
+          <button onClick={() => setActiveTab("ESCALAS")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESCALAS" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Gestão de Escalas</button>
           <button onClick={() => setActiveTab("FISCAL")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "FISCAL" ? "bg-amber-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Módulo MTE 671</button>
         </div>
 
@@ -123,11 +144,8 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
 
       <div className="p-6">
         
-        {/* NOVA TAB: DASHBOARD E INDICADORES ANALÍTICOS */}
         {activeTab === "INDICADORES" && (
           <div className="space-y-6 animate-in fade-in duration-500">
-            
-            {/* Linha 1: Cards de Resumo */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-[#0f2a4a] text-white p-5 rounded-xl shadow-md border border-gray-800">
                 <div className="text-blue-200 text-xs font-bold uppercase tracking-widest mb-1">Força de Trabalho</div>
@@ -154,10 +172,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
               </div>
             </div>
 
-            {/* Linha 2: Gráficos de Barras */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
-              {/* Gráfico de Absenteísmo e Ocorrências */}
               <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
                 <h3 className="font-bold text-[#0f2a4a] border-b border-gray-200 pb-2 mb-4">Análise de Ocorrências do Ponto</h3>
                 <div className="space-y-4">
@@ -167,7 +182,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                 </div>
               </div>
 
-              {/* Gráfico de Escalas */}
               <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
                 <h3 className="font-bold text-[#0f2a4a] border-b border-gray-200 pb-2 mb-4">Distribuição de Escalas de Trabalho</h3>
                 <div className="space-y-4">
@@ -180,12 +194,10 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                   )}
                 </div>
               </div>
-
             </div>
           </div>
         )}
 
-        {/* TAB 1: QUADRO DE SERVIDORES */}
         {activeTab === "SERVIDORES" && (
           <div className="animate-in fade-in duration-300">
             <div className="flex justify-between items-center mb-6">
@@ -227,7 +239,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           </div>
         )}
 
-        {/* TAB 2: ESPELHO DE PONTO (TRATAMENTO DE INCONSISTÊNCIAS) */}
         {activeTab === "ESPELHO" && (
           <div className="animate-in fade-in duration-300">
             <h3 className="text-lg font-bold text-gray-800 mb-4">Tratamento de Ponto Eletrônico Auditado</h3>
@@ -271,27 +282,87 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           </div>
         )}
 
-        {/* TAB 3: AUTOMATIZAÇÃO E ESCALAS DE JORNADA */}
+        {/* NOVA ABA: GESTÃO DE ESCALAS INTERATIVA */}
         {activeTab === "ESCALAS" && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            <h3 className="text-lg font-bold text-gray-800">Parametrização de Escalas e Banco de Horas</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h4 className="font-bold text-sm text-[#0f2a4a] mb-2">Escala Socioeducativa 12x36h</h4>
-                <p className="text-xs text-gray-500 mb-4">Aplicada rotineiramente a Monitores e Plantonistas das Unidades de Internação da FASE.</p>
-                <span className="text-xs font-bold text-green-700 bg-green-50 border px-2.5 py-1 rounded-md">Adicional Noturno Automatizado</span>
-              </div>
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                <h4 className="font-bold text-sm text-[#0f2a4a] mb-2">Escala 5x2 (Administrativo)</h4>
-                <p className="text-xs text-gray-500 mb-4">Jornada padrão de 8 horas diárias de segunda a sexta para equipes técnicas, psicólogos e diretores.</p>
-                <span className="text-xs font-bold text-blue-700 bg-blue-50 border px-2.5 py-1 rounded-md">Banco de Horas Ativo</span>
-              </div>
-              <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
+            
+            {/* Bloco 1: Lançador de Plantões (Formulário) */}
+            <div className="lg:col-span-1 bg-white border border-gray-200 p-6 rounded-xl shadow-sm h-fit">
+              <h3 className="text-lg font-black text-[#0f2a4a] mb-4">Montar Nova Escala</h3>
+              <form onSubmit={handlePlantaoSubmit} className="space-y-4">
                 <div>
-                  <h4 className="font-bold text-sm text-[#0f2a4a] mb-1">Integração Folha de Pagamento</h4>
-                  <p className="text-xs text-gray-500">Mapeamento direto pronto para fechamento e exportação livre de erros manuais.</p>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Funcionário Plantonista</label>
+                  <select name="servidorId" required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50">
+                    <option value="">Selecione quem vai trabalhar...</option>
+                    {servs.map((s:any) => <option key={s.id} value={s.id}>{s.nome} ({s.cargo})</option>)}
+                  </select>
                 </div>
-                <button disabled className="mt-4 w-full bg-gray-400 text-white text-xs font-bold py-2 rounded-lg cursor-not-allowed">Exportar p/ Sistema de Folha</button>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Data do Plantão / Trabalho</label>
+                  <input type="date" name="dataPlantao" required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50" />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Turno de Cobertura</label>
+                  <select name="turno" required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50">
+                    <option value="DIA (07h-19h)">DIURNO (12h) - 07:00 às 19:00</option>
+                    <option value="NOITE (19h-07h)">NOTURNO (12h) - 19:00 às 07:00</option>
+                    <option value="EXPEDIENTE">EXPEDIENTE (8h) - 08:00 às 18:00</option>
+                  </select>
+                </div>
+                
+                {/* ID da unidade oculto para salvar corretamente no banco */}
+                <input type="hidden" name="centerId" value={filtroUnidade || (servs.length > 0 ? servs[0].centerId : "")} />
+
+                <button type="submit" disabled={loading} className="w-full bg-[#0f2a4a] text-white font-bold py-3 rounded-lg shadow mt-2 hover:bg-blue-900 active:scale-95 transition-transform">
+                  {loading ? "Salvando..." : "Lançar no Calendário"}
+                </button>
+              </form>
+            </div>
+
+            {/* Bloco 2: Lista Visual de Plantões Lançados */}
+            <div className="lg:col-span-2 bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
+              <h3 className="text-lg font-black text-[#0f2a4a] mb-4">Agenda de Plantões Oficial</h3>
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                {escalasCadastradas.filter(e => !filtroUnidade || e.centerId === filtroUnidade).length === 0 ? (
+                  <div className="text-center py-10 text-gray-500 font-bold border-2 border-dashed border-gray-300 rounded-xl">
+                    Nenhum plantão ou turno escalado para esta unidade.
+                  </div>
+                ) : (
+                  escalasCadastradas
+                    .filter(e => !filtroUnidade || e.centerId === filtroUnidade)
+                    .sort((a, b) => new Date(a.dataPlantao).getTime() - new Date(b.dataPlantao).getTime()) // Ordena por data
+                    .map(escala => {
+                      const servidor = servidores.find((s:any) => s.id === escala.servidorId);
+                      
+                      // Tratamento para evitar que a data mude por causa do Fuso Horário
+                      const [ano, mes, dia] = escala.dataPlantao.split('-');
+                      const dataFormatada = `${dia}/${mes}/${ano}`;
+                      
+                      let turnoColor = "bg-blue-100 text-blue-800 border border-blue-200";
+                      if (escala.turno.includes("NOITE")) turnoColor = "bg-purple-100 text-purple-800 border border-purple-200";
+                      if (escala.turno.includes("EXPEDIENTE")) turnoColor = "bg-green-100 text-green-800 border border-green-200";
+
+                      return (
+                        <div key={escala.id} className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm flex justify-between items-center hover:shadow-md transition-shadow">
+                          <div className="flex items-center gap-4">
+                            <div className="bg-gray-50 px-4 py-2 rounded-lg text-center border border-gray-200">
+                              <span className="block text-[10px] text-gray-500 font-black uppercase tracking-widest">Data</span>
+                              <span className="block font-black text-[#0f2a4a]">{dataFormatada}</span>
+                            </div>
+                            <div>
+                              <h4 className="font-bold text-gray-800 text-base">{servidor?.nome || "Servidor Desconhecido"}</h4>
+                              <p className="text-xs text-gray-500 font-medium">{servidor?.cargo}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <span className={`px-4 py-1.5 rounded-full text-xs font-black tracking-widest ${turnoColor}`}>
+                              {escala.turno}
+                            </span>
+                          </div>
+                        </div>
+                      )
+                  })
+                )}
               </div>
             </div>
           </div>

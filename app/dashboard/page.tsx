@@ -113,6 +113,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             Perfil: <span className="font-medium">{session.role}</span>
           </span>
 
+          {/* NOVO: Botão Módulo PIA visível para todos (Admin e Unidades) */}
+          <a href="/dashboard/pia" className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
+            Módulo PIA
+          </a>
+
           {session.role === "UNIT" && (
             <a href="/dashboard/totem" className="text-sm font-bold text-[#0f2a4a] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-4 py-1.5 rounded-lg transition-colors shadow-sm flex items-center">
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
@@ -122,7 +127,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           
           {session.role === "ADMIN" && (
             <>
-              {/* NOVO BOTÃO DE INTELIGÊNCIA ESTRATÉGICA */}
+              {/* NOVO: Botão Central de Relatórios Oficiais */}
+              <a href="/dashboard/relatorios" className="text-sm font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
+                Relatórios Oficiais
+              </a>
               <a href="/dashboard/inteligencia" className="text-sm font-bold text-white bg-purple-700 hover:bg-purple-800 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
                 Inteligência Estratégica
               </a>
@@ -174,34 +182,42 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Gênero</h4>
                       {Object.entries(estatisticas.genero).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Processual</h4>
                       {Object.entries(estatisticas.situacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Faixa Etária</h4>
                       {Object.entries(estatisticas.faixaEtaria).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Raça / Cor</h4>
                       {Object.entries(estatisticas.racaCor).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Religião</h4>
                       {Object.entries(estatisticas.religiao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Orientação Sexual</h4>
                       {Object.entries(estatisticas.orientacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Último Ano Escolar</h4>
                       {Object.entries(estatisticas.ultimoAno).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Escolar</h4>
                       {Object.entries(estatisticas.sitEscolar).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
                     </div>
+
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3 col-span-1 md:col-span-2">
                       <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Motivo de Não Frequência Escolar</h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
