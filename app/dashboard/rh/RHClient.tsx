@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { salvarServidorAction, tratarPontoAction, gerarArquivoAFDAction } from "./actions";
 
-type Tab = "SERVIDORES" | "ESPELHO" | "ESCALAS" | "FISCAL";
+type Tab = "INDICADORES" | "SERVIDORES" | "ESPELHO" | "ESCALAS" | "FISCAL";
 
 export default function RHClient({ unidades, servidores, pontos }: any) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>("SERVIDORES");
+  const [activeTab, setActiveTab] = useState<Tab>("INDICADORES"); // Agora a aba padrão é o Dashboard
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [filtroUnidade, setFiltroUnidade] = useState("");
@@ -59,32 +59,135 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     }
   }
 
+  // ==========================================
+  // LÓGICA DO DASHBOARD DE INDICADORES DO RH
+  // ==========================================
+  
+  // 1. Aplica o filtro de unidade nos dados
+  const servs = servidores.filter((s:any) => !filtroUnidade || s.centerId === filtroUnidade);
+  const pts = pontos.filter((p:any) => !filtroUnidade || p.centerId === filtroUnidade);
+
+  // 2. Cálculos Numéricos
+  const totalAtivos = servs.filter((s:any) => s.status === 'ATIVO').length;
+  const hojeStr = new Date().toDateString();
+  const ptsHoje = pts.filter((p:any) => new Date(p.dataHora).toDateString() === hojeStr).length;
+
+  const ptsNormais = pts.filter((p:any) => p.statusPonto === 'NORMAL').length;
+  const ptsJustificados = pts.filter((p:any) => p.statusPonto === 'JUSTIFICADO').length;
+  const ptsAbonos = pts.filter((p:any) => p.statusPonto === 'ABONO').length;
+  const totalPts = pts.length;
+
+  // 3. Agrupamento de Escalas de Trabalho
+  const contagemEscalas = servs.reduce((acc: any, s:any) => {
+    acc[s.escala] = (acc[s.escala] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Componente Visual de Barra de Progresso do RH
+  const ProgressBar = ({ label, valor, total, color }: { label: string; valor: number; total: number, color: string }) => {
+    const porcentagem = total > 0 ? Math.round((valor / total) * 100) : 0;
+    return (
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs font-semibold text-gray-700">
+          <span>{label}</span>
+          <span>{valor} ({porcentagem}%)</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div className={`${color} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${porcentagem}%` }}></div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       
       {/* Abas e Barra de Filtro Unificado */}
-      <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-col lg:flex-row justify-between items-center gap-4">
-        <div className="flex flex-wrap gap-2">
+      <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-col xl:flex-row justify-between items-center gap-4">
+        <div className="flex flex-wrap gap-2 justify-center">
+          <button onClick={() => setActiveTab("INDICADORES")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "INDICADORES" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Indicadores e Painel</button>
           <button onClick={() => setActiveTab("SERVIDORES")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "SERVIDORES" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Quadro de Servidores</button>
-          <button onClick={() => setActiveTab("ESPELHO")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESPELHO" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Espelho de Ponto (Tratamento)</button>
+          <button onClick={() => setActiveTab("ESPELHO")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESPELHO" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Espelho de Ponto</button>
           <button onClick={() => setActiveTab("ESCALAS")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESCALAS" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Cálculos e Escalas</button>
-          <button onClick={() => setActiveTab("FISCAL")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "FISCAL" ? "bg-amber-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Portaria 671 / Fiscalização</button>
+          <button onClick={() => setActiveTab("FISCAL")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "FISCAL" ? "bg-amber-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Módulo MTE 671</button>
         </div>
 
-        <div className="flex items-center gap-4 w-full lg:w-auto justify-end">
-          <select value={filtroUnidade} onChange={(e) => setFiltroUnidade(e.target.value)} className="px-3 py-1.5 bg-white border rounded-lg text-xs font-semibold text-gray-700 shadow-sm">
-            <option value="">Filtrar todas as unidades...</option>
+        <div className="flex items-center gap-4 w-full xl:w-auto justify-end">
+          <select value={filtroUnidade} onChange={(e) => setFiltroUnidade(e.target.value)} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-[#0f2a4a] shadow-sm focus:ring-2 focus:ring-blue-500">
+            <option value="">Consolidado de Todas as Unidades</option>
             {unidades.map((u:any) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <Link href="/dashboard" className="text-sm font-bold text-[#0f2a4a] hover:underline whitespace-nowrap">&larr; Voltar ao Painel</Link>
+          <Link href="/dashboard" className="text-sm font-bold text-[#0f2a4a] hover:underline whitespace-nowrap">&larr; Voltar</Link>
         </div>
       </div>
 
       <div className="p-6">
         
+        {/* NOVA TAB: DASHBOARD E INDICADORES ANALÍTICOS */}
+        {activeTab === "INDICADORES" && (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            
+            {/* Linha 1: Cards de Resumo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-[#0f2a4a] text-white p-5 rounded-xl shadow-md border border-gray-800">
+                <div className="text-blue-200 text-xs font-bold uppercase tracking-widest mb-1">Força de Trabalho</div>
+                <div className="flex justify-between items-end">
+                  <span className="text-5xl font-black">{totalAtivos}</span>
+                  <span className="text-sm font-medium text-blue-300 mb-1">Servidores Ativos</span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Dinâmica de Hoje</div>
+                <div className="flex justify-between items-end">
+                  <span className="text-5xl font-black text-blue-600">{ptsHoje}</span>
+                  <span className="text-sm font-bold text-gray-500 mb-1">Marcações Diárias</span>
+                </div>
+              </div>
+
+              <div className="bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
+                <div className="text-gray-500 text-xs font-bold uppercase tracking-widest mb-1">Tratamentos RH</div>
+                <div className="flex justify-between items-end">
+                  <span className="text-5xl font-black text-amber-500">{ptsJustificados + ptsAbonos}</span>
+                  <span className="text-sm font-bold text-gray-500 mb-1">Pontos Ajustados</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Linha 2: Gráficos de Barras */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Gráfico de Absenteísmo e Ocorrências */}
+              <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
+                <h3 className="font-bold text-[#0f2a4a] border-b border-gray-200 pb-2 mb-4">Análise de Ocorrências do Ponto</h3>
+                <div className="space-y-4">
+                  <ProgressBar label="Marcações Normais (Totem)" valor={ptsNormais} total={totalPts} color="bg-green-500" />
+                  <ProgressBar label="Inconsistências Justificadas" valor={ptsJustificados} total={totalPts} color="bg-blue-500" />
+                  <ProgressBar label="Índice de Absenteísmo (Atestados/Abonos)" valor={ptsAbonos} total={totalPts} color="bg-red-500" />
+                </div>
+              </div>
+
+              {/* Gráfico de Escalas */}
+              <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
+                <h3 className="font-bold text-[#0f2a4a] border-b border-gray-200 pb-2 mb-4">Distribuição de Escalas de Trabalho</h3>
+                <div className="space-y-4">
+                  {Object.keys(contagemEscalas).length === 0 ? (
+                    <p className="text-sm text-gray-500 italic">Nenhum servidor cadastrado na seleção atual.</p>
+                  ) : (
+                    Object.entries(contagemEscalas).map(([escala, quantidade]) => (
+                      <ProgressBar key={escala} label={escala} valor={quantidade as number} total={servs.length} color="bg-[#0f2a4a]" />
+                    ))
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: QUADRO DE SERVIDORES */}
         {activeTab === "SERVIDORES" && (
-          <div>
+          <div className="animate-in fade-in duration-300">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-gray-800">Quadro Corporativo FASE/MA</h3>
               <button onClick={() => { setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="bg-[#0f2a4a] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#1a3a6a]">+ Cadastrar Servidor</button>
@@ -102,7 +205,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {servidores.filter((s:any) => !filtroUnidade || s.centerId === filtroUnidade).map((s: any) => (
+                  {servs.map((s: any) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 font-bold text-gray-900">{s.nome}</td>
                       <td className="px-6 py-4 font-mono text-gray-500">CPF: {s.cpf}<br/>PIS: {s.pis || 'Não cadastrado'}</td>
@@ -111,7 +214,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                       <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
                       <td className="px-6 py-4 text-right space-x-4">
                         <button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold">Editar</button>
-                        {/* NOVO BOTÃO DE GERAR PDF DO ESPELHO */}
                         <a href={`/dashboard/rh/espelho?servidorId=${s.id}`} target="_blank" className="text-green-700 hover:text-green-900 hover:underline font-bold inline-flex items-center gap-1">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                           Espelho PDF
@@ -127,7 +229,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
 
         {/* TAB 2: ESPELHO DE PONTO (TRATAMENTO DE INCONSISTÊNCIAS) */}
         {activeTab === "ESPELHO" && (
-          <div>
+          <div className="animate-in fade-in duration-300">
             <h3 className="text-lg font-bold text-gray-800 mb-4">Tratamento de Ponto Eletrônico Auditado</h3>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 border text-sm">
@@ -142,7 +244,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {pontos.filter((p:any) => !filtroUnidade || p.centerId === filtroUnidade).map((p: any) => {
+                  {pts.map((p: any) => {
                     const servidor = servidores.find((s:any) => s.id === p.servidorId);
                     return (
                       <tr key={p.id} className="hover:bg-gray-50">
@@ -171,7 +273,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
 
         {/* TAB 3: AUTOMATIZAÇÃO E ESCALAS DE JORNADA */}
         {activeTab === "ESCALAS" && (
-          <div className="space-y-6">
+          <div className="space-y-6 animate-in fade-in duration-300">
             <h3 className="text-lg font-bold text-gray-800">Parametrização de Escalas e Banco de Horas</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
@@ -197,7 +299,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
 
         {/* TAB 4: FISCALIZAÇÃO - PORTARIA 671 MTE */}
         {activeTab === "FISCAL" && (
-          <div className="max-w-2xl bg-amber-50 border border-amber-200 rounded-xl p-6 space-y-4">
+          <div className="max-w-2xl bg-amber-50 border border-amber-200 rounded-xl p-6 space-y-4 animate-in fade-in duration-300">
             <div className="flex items-start space-x-3">
               <div className="p-2 bg-amber-600 text-white rounded-lg font-bold">671</div>
               <div>
