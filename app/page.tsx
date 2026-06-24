@@ -1,65 +1,117 @@
-import Image from "next/image";
+import { cookies } from "next/headers";
+import { decrypt } from "../lib/session";
 import Link from "next/link";
+import Image from "next/image";
 
-export default function Home() {
+export default async function RootPage() {
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("session")?.value;
+  let isAuthenticated = false;
+
+  if (sessionCookie) {
+    try {
+      const session = await decrypt(sessionCookie);
+      if (session) {
+        isAuthenticated = true;
+      }
+    } catch (error) {
+      isAuthenticated = false;
+    }
+  }
+
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-gray-50 to-gray-200 p-4">
-      <div className="max-w-3xl w-full text-center space-y-8 flex flex-col items-center">
-        
-        {/* Logomarca da FASE - Agora livre, sem o fundo branco, apenas com uma sombra elegante */}
-        <div className="mb-2 relative">
-          <Image
-            src="/logo.png"
-            alt="Logomarca FASE/MA"
-            width={340} // Aumentei um pouco para dar mais destaque
-            height={340}
-            className="drop-shadow-2xl hover:scale-105 transition-transform duration-700 object-contain"
-            priority
-          />
+    <div className="min-h-screen bg-gradient-to-br from-[#0f2a4a] via-[#15355a] to-[#08182b] flex flex-col justify-between p-6 text-white relative overflow-hidden">
+      
+      {/* Elementos Visuais de Fundo (Grafismo de Segurança) */}
+      <div className="absolute inset-0 opacity-5 pointer-events-none">
+        <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-white blur-3xl"></div>
+        <div className="absolute bottom-10 right-10 w-96 h-96 rounded-full bg-blue-400 blur-3xl"></div>
+      </div>
+
+      {/* Cabeçalho Institucional */}
+      <header className="w-full max-w-5xl mx-auto flex justify-between items-center z-10 py-4 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm border border-white/10 shadow-md">
+            <Image src="/logo.png" alt="Logo FASE/MA" width={45} height={45} className="object-contain" />
+          </div>
+          <div>
+            <h2 className="text-sm font-black tracking-wider uppercase">FASE / MA</h2>
+            <p className="text-[10px] text-gray-300 uppercase tracking-widest font-bold">Governo do Maranhão</p>
+          </div>
+        </div>
+        <div className="text-xs font-mono text-white/40 font-bold tracking-widest">
+          v2.1.0 - REP-P COMPLIANT
+        </div>
+      </header>
+
+      {/* Bloco Central - Apresentação do Ecossistema */}
+      <main className="w-full max-w-4xl mx-auto flex flex-col items-center text-center my-auto z-10 space-y-8 py-12">
+        <div className="space-y-3 max-w-2xl">
+          <span className="px-4 py-1.5 rounded-full text-xs font-black bg-blue-500/20 text-blue-300 border border-blue-500/30 uppercase tracking-widest animate-pulse">
+            Plataforma Unificada de Governança
+          </span>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-white leading-tight">
+            Sistema Integrado de Gestão Socioeducativa e RH
+          </h1>
+          <p className="text-gray-300 text-sm md:text-base font-medium max-w-xl mx-auto leading-relaxed">
+            Controle biométrico de assiduidade homologado à Portaria 671 MTE e prontuário estatístico centralizado das unidades de internação.
+          </p>
         </div>
 
-        {/* Textos Institucionais e Bandeira */}
-        <div className="space-y-4 mt-8">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-[#0f2a4a] tracking-tight drop-shadow-sm">
-            Sistema Central de Gestão
-          </h1>
-          <h2 className="text-lg md:text-xl font-bold text-gray-600 uppercase tracking-wider">
-            Fundação de Atendimento Socioeducativo do Maranhão
-          </h2>
-          
-          {/* Linha com a Bandeira e o Texto do Governo */}
-          <div className="flex items-center justify-center space-x-3 pt-6 w-max mx-auto">
-            {/* Imagem da Bandeira do Maranhão puxada direto do repositório oficial */}
-            <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/4/45/Bandeira_do_Maranh%C3%A3o.svg" 
-              alt="Bandeira do Maranhão" 
-              className="w-10 shadow-md border border-gray-300 rounded-sm"
-            />
-            <p className="text-sm md:text-base font-bold text-gray-500 uppercase tracking-widest">
-              Governo do Estado do Maranhão
-            </p>
+        {/* Cards de Recursos do Sistema */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-3xl pt-4">
+          <div className="bg-white/5 border border-white/10 p-5 rounded-2xl text-left backdrop-blur-sm shadow-sm">
+            <div className="text-blue-400 font-bold text-sm mb-1 uppercase tracking-wide">01. Prontuário</div>
+            <p className="text-xs text-gray-300 leading-relaxed">Mapeamento censitário de escolarização, gênero, raça e situação processual.</p>
+          </div>
+          <div className="bg-white/5 border border-white/10 p-5 rounded-2xl text-left backdrop-blur-sm shadow-sm">
+            <div className="text-green-400 font-bold text-sm mb-1 uppercase tracking-wide">02. Ponto REP-P</div>
+            <p className="text-xs text-gray-300 leading-relaxed">Registro eletrônico em nuvem com arquitetura de contingência offline em lote.</p>
+          </div>
+          <div className="bg-white/5 border border-white/10 p-5 rounded-2xl text-left backdrop-blur-sm shadow-sm">
+            <div className="text-amber-400 font-bold text-sm mb-1 uppercase tracking-wide">03. Auditoria</div>
+            <p className="text-xs text-gray-300 leading-relaxed">Log imutável de governança com justificativa obrigatória para segurança jurídica.</p>
           </div>
         </div>
 
-        {/* Botão de Acesso */}
-        <div className="pt-10">
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center bg-[#0f2a4a] hover:bg-[#1a3a6a] text-white px-10 py-4 rounded-full font-bold text-lg shadow-xl transition-all transform hover:-translate-y-1 hover:shadow-2xl ring-4 ring-blue-900/10"
-          >
-            Acessar o Sistema
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
-          </Link>
+        {/* Direcionamento Dinâmico de Acesso */}
+        <div className="pt-6">
+          {isAuthenticated ? (
+            <Link 
+              href="/dashboard" 
+              className="inline-flex items-center justify-center bg-white text-[#0f2a4a] hover:bg-gray-100 font-black text-base px-8 py-4 rounded-xl shadow-xl hover:shadow-white/5 transition-all transform active:scale-95 gap-3 group"
+            >
+              Acessar Painel Central
+              <svg className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
+              </svg>
+            </Link>
+          ) : (
+            <Link 
+              href="/login" 
+              className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-black text-base px-10 py-4 rounded-xl shadow-xl hover:shadow-blue-600/20 transition-all transform active:scale-95 gap-3 group border border-blue-500"
+            >
+              Autenticação de Servidores
+              <svg className="w-5 h-5 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+              </svg>
+            </Link>
+          )}
         </div>
-        
-      </div>
+      </main>
 
-      {/* Rodapé institucional */}
-      <footer className="absolute bottom-6 text-xs font-medium text-gray-400">
-        &copy; {new Date().getFullYear()} FASE/MA - Sistema desenvolvido para controle de unidades socioeducativas.
+      {/* Rodapé e Declaração de Conformidade */}
+      <footer className="w-full max-w-5xl mx-auto border-t border-white/10 pt-4 pb-2 flex flex-col md:flex-row justify-between items-center gap-4 z-10 text-xs text-gray-400 font-medium">
+        <p>&copy; {new Date().getFullYear()} FASE/MA. Todos os direitos reservados.</p>
+        <div className="flex gap-4 items-center">
+          <span className="flex items-center gap-1.5 text-green-400 bg-green-500/10 px-2.5 py-0.5 border border-green-500/20 rounded-md">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
+            Criptografia de Dados Ativa
+          </span>
+          <p>Fundação de Atendimento Socioeducativo do Maranhão</p>
+        </div>
       </footer>
+
     </div>
   );
 }

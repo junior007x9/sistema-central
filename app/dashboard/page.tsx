@@ -30,7 +30,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   // Lendo os parâmetros de filtro da URL de forma assíncrona
   const { centerId } = await searchParams;
 
-  // Estrutura completa dos contadores estatísticos (agora com Escolarização)
+  // Estrutura completa dos contadores estatísticos (com Escolarização)
   const estatisticas = {
     total: 0,
     genero: { Masculino: 0, Feminino: 0, Outros: 0 },
@@ -128,11 +128,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </a>
           )}
           
-          {/* Botão de Gerenciamento APENAS para o Administrador */}
+          {/* Botões do Administrador (RH + Gerenciamento) */}
           {session.role === "ADMIN" && (
-            <a href="/dashboard/gerenciamento" className="text-sm font-bold text-white bg-[#0f2a4a] hover:bg-[#1a3a6a] px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-              Gerenciar Sistema
-            </a>
+            <>
+              <a href="/dashboard/rh" className="text-sm font-bold text-white bg-green-700 hover:bg-green-800 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
+                Gestão de RH
+              </a>
+              <a href="/dashboard/gerenciamento" className="text-sm font-bold text-white bg-[#0f2a4a] hover:bg-[#1a3a6a] px-4 py-1.5 rounded-lg transition-colors shadow-sm">
+                Gerenciar Sistema
+              </a>
+            </>
           )}
 
           <form action={logoutAction}>
