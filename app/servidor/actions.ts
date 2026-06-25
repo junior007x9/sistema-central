@@ -4,9 +4,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "../../db";
 import { servidores, solicitacoesAbono } from "../../db/schema";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { encrypt, decrypt } from "../../lib/session";
 import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs"; // Importação do Bcrypt
 
 export async function loginServidorAction(formData: FormData) {
   const cpf = formData.get("cpf") as string;
@@ -14,18 +15,35 @@ export async function loginServidorAction(formData: FormData) {
 
   if (!cpf || !senha) return { error: "Preencha o CPF e a Senha." };
 
-  const query = await db.select().from(servidores).where(and(eq(servidores.cpf, cpf), eq(servidores.senha, senha)));
+  // 1. Procuramos o servidor na base de dados apenas utilizando o CPF
+  const query = await db.select().from(servidores).where(eq(servidores.cpf, cpf));
   const servidor = query[0];
 
-  if (!servidor) return { error: "CPF ou senha incorretos. A senha inicial padrão é fase123" };
-  if (servidor.status !== "ATIVO") return { error: "Sua matrícula está inativa. Procure o RH da sua unidade." };
+  // 2. Se o utilizador não existir, ou se a senha desencriptada não bater certo com o hash, barramos o acesso
+  if (!servidor) {
+    return { error: "CPF ou senha incorretos." };
+  }
 
+  const senhaCorreta = await bcrypt.compare(senha, servidor.senha);
+  if (!senhaCorreta) {
+    return { error: "CPF ou senha incorretos." };
+  }
+
+  // 3. Validação do estado funcional da matrícula
+  if (servidor.status !== "ATIVO") {
+    return { error: "Sua matrícula está inativa. Procure o RH da sua unidade." };
+  }
+
+  // 4. Criação da sessão segura criptografada
   const sessionData = { id: servidor.id, role: "SERVIDOR", nome: servidor.nome, centerId: servidor.centerId };
   const encryptedSession = await encrypt(sessionData);
   const cookieStore = await cookies();
   
   cookieStore.set("session_servidor", encryptedSession, { 
-    httpOnly: true, secure: process.env.NODE_ENV === "production", path: "/", maxAge: 60 * 60 * 24 * 7 
+    httpOnly: true, 
+    secure: process.env.NODE_ENV === "production", 
+    path: "/", 
+    maxAge: 60 * 60 * 24 * 7 
   });
   
   redirect("/servidor/dashboard");
@@ -37,7 +55,7 @@ export async function logoutServidorAction() {
   redirect("/servidor/login");
 }
 
-// NOVO: Ação de envio do Atestado
+// Ação de envio do Atestado mantida intacta
 export async function enviarAtestadoAction(formData: FormData) {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("session_servidor")?.value;

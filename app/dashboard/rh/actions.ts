@@ -3,6 +3,7 @@
 import { db } from "../../../db";
 import { servidores, pontos, auditLogs, escalasPlantao, solicitacoesAbono, centers } from "../../../db/schema";
 import { eq } from "drizzle-orm";
+import bcrypt from "bcryptjs"; // <-- NOVO: Importação da biblioteca de criptografia
 
 async function registrarLog(entidade: string, acao: string, detalhe: string, observacao: string) {
   await db.insert(auditLogs).values({
@@ -24,12 +25,28 @@ export async function salvarServidorAction(formData: FormData) {
   if (!nome || !cpf || !pis || !cargo || !centerId || !observacao) return { error: "Preencha tudo." };
 
   if (id) {
+    // Na edição, mantemos a senha atual intocável
     await db.update(servidores).set({ nome, cpf, pis, cargo, escala, centerId, status }).where(eq(servidores.id, id));
     await registrarLog("SERVIDOR", "EDITAR", `${nome}`, observacao);
     return { success: "Atualizado!" };
   } else {
     try {
-      await db.insert(servidores).values({ id: crypto.randomUUID(), nome, cpf, pis, cargo, escala, centerId, status: "ATIVO", createdAt: new Date() });
+      // NOVO: Aplicando criptografia militar (Bcrypt) na senha padrão ao cadastrar
+      const custoSalt = 10;
+      const senhaCriptografada = await bcrypt.hash("fase123", custoSalt);
+
+      await db.insert(servidores).values({ 
+        id: crypto.randomUUID(), 
+        nome, 
+        cpf, 
+        pis, 
+        cargo, 
+        escala, 
+        centerId, 
+        senha: senhaCriptografada, // Salvando o hash gerado no banco de dados
+        status: "ATIVO", 
+        createdAt: new Date() 
+      });
       await registrarLog("SERVIDOR", "CRIAR", `${nome}`, observacao);
       return { success: "Cadastrado!" };
     } catch { return { error: "CPF já cadastrado." }; }
