@@ -81,26 +81,36 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm gap-4">
-        <div className="flex items-center gap-4">
-          <Image src="/logo.png" alt="Logo FASE" width={50} height={50} className="drop-shadow-sm" />
-          <div>
-            <h1 className="text-xl font-bold text-[#0f2a4a]">Sistema Central</h1>
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">FASE / MA</p>
+      {/* CABEÇALHO MOBILE UPGRADED */}
+      <header className="bg-white border-b border-gray-200 px-4 sm:px-6 py-3 sm:py-4 flex flex-col sm:flex-row justify-between items-center shadow-sm gap-3 sm:gap-4">
+        
+        {/* Logo e Título */}
+        <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+          <div className="flex items-center gap-3">
+            <Image src="/logo.png" alt="Logo FASE" width={45} height={45} className="drop-shadow-sm" />
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold text-[#0f2a4a] leading-tight">Sistema Central</h1>
+              <p className="text-[10px] sm:text-xs font-semibold text-gray-500 uppercase tracking-wide">FASE / MA</p>
+            </div>
+          </div>
+          
+          {/* Sino de Notificações aparece do lado direito no Mobile */}
+          <div className="relative group cursor-pointer flex items-center justify-center sm:hidden">
+            <div className="p-2 bg-gray-50 rounded-full hover:bg-gray-100 border border-gray-200">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+              {totalPendenciasRH > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-white animate-pulse">{totalPendenciasRH}</span>}
+            </div>
           </div>
         </div>
         
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        {/* Menu Deslizável (Scroll Horizontal Invisível no Mobile) */}
+        <div className="flex overflow-x-auto w-full sm:w-auto items-center gap-2 sm:gap-3 scrollbar-hide snap-x pb-1 sm:pb-0">
           
-          {/* SINO DE NOTIFICAÇÕES INTELIGENTE */}
-          <div className="relative group cursor-pointer mr-2 flex items-center justify-center">
+          {/* Sino de Notificações para Desktop */}
+          <div className="relative group cursor-pointer hidden sm:flex items-center justify-center snap-start">
             <div className="p-2 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors border border-gray-200">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-              {totalPendenciasRH > 0 && (
-                <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-white animate-pulse">
-                  {totalPendenciasRH}
-                </span>
-              )}
+              {totalPendenciasRH > 0 && <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-white animate-pulse">{totalPendenciasRH}</span>}
             </div>
             {/* Pop-up do Sino */}
             <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 hidden group-hover:block z-50 overflow-hidden">
@@ -109,81 +119,60 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 {totalPendenciasRH > 0 ? (
                   <a href="/dashboard/rh" className="block p-3 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100">
                     <span className="text-red-500 font-bold text-xs uppercase tracking-widest block mb-1">Ação Requerida (RH)</span>
-                    <span className="text-sm font-bold text-gray-800">Você tem {totalPendenciasRH} atestado(s) médico(s) pendente(s) de aprovação.</span>
+                    <span className="text-sm font-bold text-gray-800">Você tem {totalPendenciasRH} atestado(s) pendente(s).</span>
                   </a>
-                ) : (
-                  <div className="p-4 text-center text-sm text-gray-500">Nenhum alerta pendente.</div>
-                )}
-                {session.role === "UNIT" && (
-                  <div className="p-3 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100">
-                    <span className="text-blue-500 font-bold text-xs uppercase tracking-widest block mb-1">Lembrete PIA</span>
-                    <span className="text-sm font-medium text-gray-600">Lembre-se de atualizar o prontuário dos adolescentes periodicamente.</span>
-                  </div>
-                )}
+                ) : <div className="p-4 text-center text-sm text-gray-500">Nenhum alerta pendente.</div>}
               </div>
             </div>
           </div>
 
-          <a href="/dashboard/pia" className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-colors shadow-sm">Módulo PIA</a>
+          <a href="/dashboard/pia" className="snap-start whitespace-nowrap text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors shadow-sm">Módulo PIA</a>
           
           {session.role === "UNIT" && (
-            <a href="/dashboard/totem" className="text-sm font-bold text-[#0f2a4a] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-4 py-1.5 rounded-lg transition-colors shadow-sm flex items-center">
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <a href="/dashboard/totem" className="snap-start whitespace-nowrap text-xs sm:text-sm font-bold text-[#0f2a4a] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors shadow-sm flex items-center">
+              <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
               Abrir Totem
             </a>
           )}
           
           {session.role === "ADMIN" && (
             <>
-              {/* BOTÃO DA CAIXA PRETA / AUDITORIA */}
-              <a href="/dashboard/auditoria" className="text-sm font-bold text-white bg-black hover:bg-gray-800 px-4 py-1.5 rounded-lg transition-colors shadow-md border border-gray-700">
-                Auditoria
-              </a>
-              <a href="/dashboard/relatorios" className="text-sm font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Relatórios
-              </a>
-              <a href="/dashboard/inteligencia" className="text-sm font-bold text-white bg-purple-700 hover:bg-purple-800 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Inteligência
-              </a>
-              <a href="/dashboard/rh" className="text-sm font-bold text-white bg-green-700 hover:bg-green-800 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Gestão RH
-              </a>
-              <a href="/dashboard/gerenciamento" className="text-sm font-bold text-white bg-[#0f2a4a] hover:bg-[#1a3a6a] px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Gerenciar
-              </a>
+              <a href="/dashboard/auditoria" className="snap-start whitespace-nowrap text-xs sm:text-sm font-bold text-white bg-black hover:bg-gray-800 px-4 py-2 rounded-lg transition-colors shadow-md border border-gray-700">Auditoria</a>
+              <a href="/dashboard/relatorios" className="snap-start whitespace-nowrap text-xs sm:text-sm font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-4 py-2 rounded-lg transition-colors shadow-sm">Relatórios</a>
+              <a href="/dashboard/inteligencia" className="snap-start whitespace-nowrap text-xs sm:text-sm font-bold text-white bg-purple-700 hover:bg-purple-800 px-4 py-2 rounded-lg transition-colors shadow-sm">Inteligência</a>
+              <a href="/dashboard/rh" className="snap-start whitespace-nowrap text-xs sm:text-sm font-bold text-white bg-green-700 hover:bg-green-800 px-4 py-2 rounded-lg transition-colors shadow-sm">Gestão RH</a>
+              <a href="/dashboard/gerenciamento" className="snap-start whitespace-nowrap text-xs sm:text-sm font-bold text-white bg-[#0f2a4a] hover:bg-[#1a3a6a] px-4 py-2 rounded-lg transition-colors shadow-sm">Gerenciar</a>
             </>
           )}
 
-          <form action={logoutAction}>
-            <button type="submit" className="text-sm font-bold text-red-600 hover:text-red-800 transition-colors ml-1 border-l pl-3 ml-2 border-gray-300">Sair</button>
+          <form action={logoutAction} className="snap-start pl-1">
+            <button type="submit" className="whitespace-nowrap text-xs sm:text-sm font-bold text-red-600 hover:text-red-800 transition-colors border-l border-gray-300 pl-3">Sair</button>
           </form>
         </div>
       </header>
 
-      <main className="flex-1 p-6">
-        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-          
+      <main className="flex-1 p-4 sm:p-6">
+        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-200">
           {session.role === "ADMIN" ? (
             <div>
               <div className="border-b pb-4 mb-6">
-                <h2 className="text-2xl font-bold text-[#0f2a4a]">Painel do Administrador Central</h2>
-                <p className="text-sm text-gray-500 mt-1">Exibindo dados de: <span className="font-bold text-[#1a3a6a]">{nomeUnidadeSelecionada}</span></p>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#0f2a4a]">Painel do Administrador Central</h2>
+                <p className="text-xs sm:text-sm text-gray-500 mt-1">Exibindo dados de: <span className="font-bold text-[#1a3a6a]">{nomeUnidadeSelecionada}</span></p>
               </div>
 
               <UnitSelector units={todasUnidades} />
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
                 <div className="lg:col-span-2 space-y-6">
-                  <div className="bg-[#0f2a4a] text-white p-6 rounded-xl shadow-md flex items-center justify-between">
+                  <div className="bg-[#0f2a4a] text-white p-5 sm:p-6 rounded-xl shadow-md flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm font-medium uppercase tracking-wider text-blue-200">Adolescentes Atendidos</h3>
-                      <p className="text-xs text-blue-100 mt-0.5">Filtrado com base na seleção atual</p>
+                      <h3 className="text-xs sm:text-sm font-medium uppercase tracking-wider text-blue-200">Adolescentes Atendidos</h3>
+                      <p className="text-[10px] sm:text-xs text-blue-100 mt-0.5">Filtrado com base na seleção</p>
                     </div>
-                    <span className="text-5xl font-extrabold tracking-tight">{estatisticas.total}</span>
+                    <span className="text-4xl sm:text-5xl font-extrabold tracking-tight">{estatisticas.total}</span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Gênero</h4>{Object.entries(estatisticas.genero).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Processual</h4>{Object.entries(estatisticas.situacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Faixa Etária</h4>{Object.entries(estatisticas.faixaEtaria).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
@@ -192,7 +181,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Orientação Sexual</h4>{Object.entries(estatisticas.orientacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Último Ano Escolar</h4>{Object.entries(estatisticas.ultimoAno).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
                     <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Escolar</h4>{Object.entries(estatisticas.sitEscolar).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3 col-span-1 md:col-span-2"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Motivo de Não Frequência Escolar</h4><div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">{Object.entries(estatisticas.motivoEscola).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div></div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3 col-span-1 sm:col-span-2"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Motivo de Não Frequência</h4><div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">{Object.entries(estatisticas.motivoEscola).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div></div>
                   </div>
                 </div>
 
@@ -211,8 +200,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
           ) : (
             <div>
-              <h2 className="text-2xl font-bold text-[#0f2a4a] mb-2">Painel de Indicadores da Unidade</h2>
-              <p className="text-gray-600 mb-8 border-b pb-4">Registre os dados abaixo referentes ao cadastro individual do adolescente na sua unidade.</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-[#0f2a4a] mb-2">Painel de Indicadores</h2>
+              <p className="text-xs sm:text-sm text-gray-600 mb-6 border-b pb-4">Registre os dados referentes ao cadastro individual do adolescente.</p>
               <UnitForm />
             </div>
           )}
