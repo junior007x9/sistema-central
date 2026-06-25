@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../../../db";
-import { servidores, pontos, auditLogs, escalasPlantao } from "../../../db/schema";
+import { servidores, pontos, auditLogs, escalasPlantao, solicitacoesAbono } from "../../../db/schema";
 import { eq } from "drizzle-orm";
 
 async function registrarLog(entidade: string, acao: string, detalhe: string, observacao: string) {
@@ -69,9 +69,6 @@ export async function gerarArquivoAFDAction(centerId?: string) {
   return { success: true, conteudo: conteudoAFD, fileName: `AFD_FASE_MA.txt` };
 }
 
-// =====================================
-// NOVO: Ação de Gerenciamento de Escalas
-// =====================================
 export async function salvarPlantaoAction(formData: FormData) {
   const servidorId = formData.get("servidorId") as string;
   const centerId = formData.get("centerId") as string;
@@ -79,18 +76,29 @@ export async function salvarPlantaoAction(formData: FormData) {
   const turno = formData.get("turno") as any;
 
   if (!servidorId || !dataPlantao || !turno || !centerId) return { error: "Preencha todos os campos obrigatórios." };
-
-  await db.insert(escalasPlantao).values({
-    id: crypto.randomUUID(),
-    servidorId,
-    centerId,
-    dataPlantao,
-    turno
-  });
-
+  await db.insert(escalasPlantao).values({ id: crypto.randomUUID(), servidorId, centerId, dataPlantao, turno });
   return { success: "Turno escalado com sucesso!" };
 }
 
 export async function listarEscalasAction() {
   return await db.select().from(escalasPlantao);
+}
+
+// =====================================
+// NOVO: Ações da Caixa de Atestados
+// =====================================
+export async function listarAtestadosAction() {
+  return await db.select().from(solicitacoesAbono);
+}
+
+export async function avaliarAtestadoAction(formData: FormData) {
+  const id = formData.get("id") as string;
+  const status = formData.get("status") as "APROVADO" | "REJEITADO";
+
+  if (!id || !status) return { error: "Dados inválidos." };
+
+  await db.update(solicitacoesAbono).set({ status }).where(eq(solicitacoesAbono.id, id));
+  await registrarLog("ATESTADOS", status, `ID: ${id}`, `RH marcou atestado como ${status}.`);
+
+  return { success: `Atestado ${status.toLowerCase()} com sucesso!` };
 }

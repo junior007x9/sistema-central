@@ -6,7 +6,8 @@ import Image from "next/image";
 import UnitForm from "./UnitForm";
 import UnitSelector from "./UnitSelector";
 import { db } from "../../db";
-import { atendimentos, centers } from "../../db/schema";
+import { atendimentos, centers, solicitacoesAbono } from "../../db/schema";
+import { eq } from "drizzle-orm";
 
 interface PageProps {
   searchParams: Promise<{ centerId?: string }>;
@@ -15,22 +16,17 @@ interface PageProps {
 export default async function DashboardPage({ searchParams }: PageProps) {
   const cookieStore = await cookies();
   const sessionCookie = cookieStore.get("session")?.value;
-
-  if (!sessionCookie) {
-    redirect("/login");
-  }
+  if (!sessionCookie) redirect("/login");
 
   let session;
-  try {
-    session = await decrypt(sessionCookie);
-  } catch (error) {
-    redirect("/login");
-  }
+  try { session = await decrypt(sessionCookie); } catch { redirect("/login"); }
 
-  // Lendo os parâmetros de filtro da URL de forma assíncrona
   const { centerId } = await searchParams;
 
-  // Estrutura completa dos contadores estatísticos
+  // Lógica de Notificações Inteligentes
+  const atestadosPendentes = await db.select().from(solicitacoesAbono).where(eq(solicitacoesAbono.status, 'PENDENTE'));
+  const totalPendenciasRH = session.role === "ADMIN" ? atestadosPendentes.length : 0;
+
   const estatisticas = {
     total: 0,
     genero: { Masculino: 0, Feminino: 0, Outros: 0 },
@@ -50,18 +46,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   if (session.role === "ADMIN") {
     todasUnidades = await db.select().from(centers);
-    
     const queryAtendimentos = db.select().from(atendimentos);
     if (centerId) {
       const unidadeFiltrada = todasUnidades.find(u => u.id === centerId);
       if (unidadeFiltrada) nomeUnidadeSelecionada = unidadeFiltrada.name;
     }
-
     const listaAtendimentos = await queryAtendimentos;
-    const atendimentosFiltrados = centerId 
-      ? listaAtendimentos.filter(a => a.centerId === centerId)
-      : listaAtendimentos;
-
+    const atendimentosFiltrados = centerId ? listaAtendimentos.filter(a => a.centerId === centerId) : listaAtendimentos;
     estatisticas.total = atendimentosFiltrados.length;
 
     atendimentosFiltrados.forEach((a) => {
@@ -75,24 +66,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       if (a.situacaoEscolar in estatisticas.sitEscolar) estatisticas.sitEscolar[a.situacaoEscolar as keyof typeof estatisticas.sitEscolar]++;
       if (a.motivoNaoFrequenta in estatisticas.motivoEscola) estatisticas.motivoEscola[a.motivoNaoFrequenta as keyof typeof estatisticas.motivoEscola]++;
     });
-
-    tabelaUnidades = todasUnidades.map((u) => ({
-      nome: u.name,
-      quantidade: listaAtendimentos.filter((a) => a.centerId === u.id).length
-    }));
+    tabelaUnidades = todasUnidades.map((u) => ({ nome: u.name, quantidade: listaAtendimentos.filter((a) => a.centerId === u.id).length }));
   }
 
   const ProgressBar = ({ label, valor, total }: { label: string; valor: number; total: number }) => {
     const porcentagem = total > 0 ? Math.round((valor / total) * 100) : 0;
     return (
       <div className="space-y-1">
-        <div className="flex justify-between text-xs font-semibold text-gray-700">
-          <span>{label}</span>
-          <span>{valor} ({porcentagem}%)</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div className="bg-[#0f2a4a] h-2 rounded-full transition-all duration-500" style={{ width: `${porcentagem}%` }}></div>
-        </div>
+        <div className="flex justify-between text-xs font-semibold text-gray-700"><span>{label}</span><span>{valor} ({porcentagem}%)</span></div>
+        <div className="w-full bg-gray-200 rounded-full h-2"><div className="bg-[#0f2a4a] h-2 rounded-full transition-all duration-500" style={{ width: `${porcentagem}%` }}></div></div>
       </div>
     );
   };
@@ -109,44 +91,71 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         </div>
         
         <div className="flex flex-wrap items-center justify-center gap-3">
-          <span className="text-sm text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full border border-gray-200 shadow-inner hidden sm:inline-block">
-            Perfil: <span className="font-medium">{session.role}</span>
-          </span>
+          
+          {/* SINO DE NOTIFICAÇÕES INTELIGENTE */}
+          <div className="relative group cursor-pointer mr-2 flex items-center justify-center">
+            <div className="p-2 bg-gray-50 rounded-full hover:bg-gray-100 transition-colors border border-gray-200">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+              {totalPendenciasRH > 0 && (
+                <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[9px] font-black text-white animate-pulse">
+                  {totalPendenciasRH}
+                </span>
+              )}
+            </div>
+            {/* Pop-up do Sino */}
+            <div className="absolute top-full right-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 hidden group-hover:block z-50 overflow-hidden">
+              <div className="bg-[#0f2a4a] text-white p-3 font-bold text-sm">Central de Alertas</div>
+              <div className="p-2 space-y-1">
+                {totalPendenciasRH > 0 ? (
+                  <a href="/dashboard/rh" className="block p-3 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100">
+                    <span className="text-red-500 font-bold text-xs uppercase tracking-widest block mb-1">Ação Requerida (RH)</span>
+                    <span className="text-sm font-bold text-gray-800">Você tem {totalPendenciasRH} atestado(s) médico(s) pendente(s) de aprovação.</span>
+                  </a>
+                ) : (
+                  <div className="p-4 text-center text-sm text-gray-500">Nenhum alerta pendente.</div>
+                )}
+                {session.role === "UNIT" && (
+                  <div className="p-3 hover:bg-gray-50 rounded-lg transition-colors border border-gray-100">
+                    <span className="text-blue-500 font-bold text-xs uppercase tracking-widest block mb-1">Lembrete PIA</span>
+                    <span className="text-sm font-medium text-gray-600">Lembre-se de atualizar o prontuário dos adolescentes periodicamente.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
 
-          {/* NOVO: Botão Módulo PIA visível para todos (Admin e Unidades) */}
-          <a href="/dashboard/pia" className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-            Módulo PIA
-          </a>
-
+          <a href="/dashboard/pia" className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-1.5 rounded-lg transition-colors shadow-sm">Módulo PIA</a>
+          
           {session.role === "UNIT" && (
             <a href="/dashboard/totem" className="text-sm font-bold text-[#0f2a4a] bg-blue-50 border border-blue-200 hover:bg-blue-100 px-4 py-1.5 rounded-lg transition-colors shadow-sm flex items-center">
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-              Abrir Totem de Ponto
+              Abrir Totem
             </a>
           )}
           
           {session.role === "ADMIN" && (
             <>
-              {/* NOVO: Botão Central de Relatórios Oficiais */}
+              {/* BOTÃO DA CAIXA PRETA / AUDITORIA */}
+              <a href="/dashboard/auditoria" className="text-sm font-bold text-white bg-black hover:bg-gray-800 px-4 py-1.5 rounded-lg transition-colors shadow-md border border-gray-700">
+                Auditoria
+              </a>
               <a href="/dashboard/relatorios" className="text-sm font-bold text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Relatórios Oficiais
+                Relatórios
               </a>
               <a href="/dashboard/inteligencia" className="text-sm font-bold text-white bg-purple-700 hover:bg-purple-800 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Inteligência Estratégica
+                Inteligência
               </a>
               <a href="/dashboard/rh" className="text-sm font-bold text-white bg-green-700 hover:bg-green-800 px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Gestão de RH
+                Gestão RH
               </a>
               <a href="/dashboard/gerenciamento" className="text-sm font-bold text-white bg-[#0f2a4a] hover:bg-[#1a3a6a] px-4 py-1.5 rounded-lg transition-colors shadow-sm">
-                Gerenciar Sistema
+                Gerenciar
               </a>
             </>
           )}
 
           <form action={logoutAction}>
-            <button type="submit" className="text-sm font-bold text-red-600 hover:text-red-800 transition-colors ml-1">
-              Sair
-            </button>
+            <button type="submit" className="text-sm font-bold text-red-600 hover:text-red-800 transition-colors ml-1 border-l pl-3 ml-2 border-gray-300">Sair</button>
           </form>
         </div>
       </header>
@@ -158,9 +167,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <div>
               <div className="border-b pb-4 mb-6">
                 <h2 className="text-2xl font-bold text-[#0f2a4a]">Painel do Administrador Central</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  Exibindo dados de: <span className="font-bold text-[#1a3a6a]">{nomeUnidadeSelecionada}</span>
-                </p>
+                <p className="text-sm text-gray-500 mt-1">Exibindo dados de: <span className="font-bold text-[#1a3a6a]">{nomeUnidadeSelecionada}</span></p>
               </div>
 
               <UnitSelector units={todasUnidades} />
@@ -168,7 +175,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 
                 <div className="lg:col-span-2 space-y-6">
-                  
                   <div className="bg-[#0f2a4a] text-white p-6 rounded-xl shadow-md flex items-center justify-between">
                     <div>
                       <h3 className="text-sm font-medium uppercase tracking-wider text-blue-200">Adolescentes Atendidos</h3>
@@ -178,52 +184,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Gênero</h4>
-                      {Object.entries(estatisticas.genero).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Processual</h4>
-                      {Object.entries(estatisticas.situacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Faixa Etária</h4>
-                      {Object.entries(estatisticas.faixaEtaria).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Raça / Cor</h4>
-                      {Object.entries(estatisticas.racaCor).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Religião</h4>
-                      {Object.entries(estatisticas.religiao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Orientação Sexual</h4>
-                      {Object.entries(estatisticas.orientacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Último Ano Escolar</h4>
-                      {Object.entries(estatisticas.ultimoAno).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Escolar</h4>
-                      {Object.entries(estatisticas.sitEscolar).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                    </div>
-
-                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3 col-span-1 md:col-span-2">
-                      <h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Motivo de Não Frequência Escolar</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">
-                        {Object.entries(estatisticas.motivoEscola).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}
-                      </div>
-                    </div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Gênero</h4>{Object.entries(estatisticas.genero).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Processual</h4>{Object.entries(estatisticas.situacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Faixa Etária</h4>{Object.entries(estatisticas.faixaEtaria).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Raça / Cor</h4>{Object.entries(estatisticas.racaCor).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Religião</h4>{Object.entries(estatisticas.religiao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Orientação Sexual</h4>{Object.entries(estatisticas.orientacao).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Último Ano Escolar</h4>{Object.entries(estatisticas.ultimoAno).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Situação Escolar</h4>{Object.entries(estatisticas.sitEscolar).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div>
+                    <div className="bg-white border border-gray-200 p-4 rounded-xl shadow-sm space-y-3 col-span-1 md:col-span-2"><h4 className="text-sm font-bold text-[#0f2a4a] uppercase border-b pb-1.5">Motivo de Não Frequência Escolar</h4><div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3">{Object.entries(estatisticas.motivoEscola).map(([k, v]) => <ProgressBar key={k} label={k} valor={v} total={estatisticas.total} />)}</div></div>
                   </div>
                 </div>
 
@@ -238,15 +207,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     ))}
                   </div>
                 </div>
-
               </div>
             </div>
           ) : (
             <div>
               <h2 className="text-2xl font-bold text-[#0f2a4a] mb-2">Painel de Indicadores da Unidade</h2>
-              <p className="text-gray-600 mb-8 border-b pb-4">
-                Registre os dados abaixo referentes ao cadastro individual do adolescente na sua unidade.
-              </p>
+              <p className="text-gray-600 mb-8 border-b pb-4">Registre os dados abaixo referentes ao cadastro individual do adolescente na sua unidade.</p>
               <UnitForm />
             </div>
           )}
