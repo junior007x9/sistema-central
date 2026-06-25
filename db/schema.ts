@@ -98,3 +98,14 @@ export const auditLogs = sqliteTable('audit_logs', {
   observacao: text('observacao').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
+// NOVO MÓDULO: Solicitações de Atestados e Abonos (Portal do Colaborador)
+export const solicitacoesAbono = sqliteTable('solicitacoes_abono', {
+  id: text('id').primaryKey(),
+  servidorId: text('servidor_id').notNull().references(() => servidores.id),
+  centerId: text('center_id').notNull().references(() => centers.id),
+  dataFalta: text('data_falta').notNull(),
+  motivo: text('motivo').notNull(),
+  anexo: text('anexo'), // Guardará a foto/documento em Base64
+  status: text('status', { enum: ['PENDENTE', 'APROVADO', 'REJEITADO'] }).notNull().default('PENDENTE'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
