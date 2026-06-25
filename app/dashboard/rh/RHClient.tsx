@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-// Importamos as ações de Escala, Atestados e agora a Folha de Pagamento
+// Importamos as ações de Escala e as novas ações de Atestados
 import { 
   salvarServidorAction, tratarPontoAction, gerarArquivoAFDAction, 
   salvarPlantaoAction, listarEscalasAction,
   listarAtestadosAction, avaliarAtestadoAction,
-  gerarFolhaPagamentoAction // <-- NOVO AQUI
+  gerarFolhaPagamentoAction
 } from "./actions";
 
 type Tab = "INDICADORES" | "SERVIDORES" | "ESPELHO" | "ESCALAS" | "ATESTADOS" | "FISCAL";
@@ -21,15 +21,17 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   const [filtroUnidade, setFiltroUnidade] = useState("");
 
   const [escalasCadastradas, setEscalasCadastradas] = useState<any[]>([]);
+  // NOVO: Estado para guardar os atestados vindos do banco
   const [atestadosCadastrados, setAtestadosCadastrados] = useState<any[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  // NOVO: Adicionado "VER_ATESTADO" aos tipos de Modal
   const [modalType, setModalType] = useState<"MANUTENCAO_SERVIDOR" | "TRATAR_PONTO" | "VER_ATESTADO" | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   useEffect(() => {
     listarEscalasAction().then(setEscalasCadastradas);
-    listarAtestadosAction().then(setAtestadosCadastrados);
+    listarAtestadosAction().then(setAtestadosCadastrados); // Carrega a caixa de entrada
   }, []);
 
   function closeModal() {
@@ -69,11 +71,12 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     } else {
       const novasEscalas = await listarEscalasAction();
       setEscalasCadastradas(novasEscalas);
-      (e.target as HTMLFormElement).reset();
+      (e.target as HTMLFormElement).reset(); // Limpa o formulário
     }
     setLoading(false);
   }
 
+  // NOVO: Função para o RH Aprovar ou Rejeitar a foto do atestado
   async function handleAvaliarAtestado(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
@@ -104,7 +107,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   }
 
   // =======================================================
-  // NOVO: Função para baixar o Excel da Folha de Pagamento
+  // Função para baixar o Excel da Folha de Pagamento
   // =======================================================
   async function baixarFolhaPagamento() {
     setLoading(true);
@@ -126,6 +129,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   // Lógica de Indicadores
   const servs = servidores.filter((s:any) => !filtroUnidade || s.centerId === filtroUnidade);
   const pts = pontos.filter((p:any) => !filtroUnidade || p.centerId === filtroUnidade);
+  // Filtro da Caixa de Entrada de Atestados
   const atestadosFiltrados = atestadosCadastrados.filter(a => !filtroUnidade || a.centerId === filtroUnidade);
 
   const totalAtivos = servs.filter((s:any) => s.status === 'ATIVO').length;
@@ -160,15 +164,17 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       
-      {/* Abas e Barra de Filtro Unificado */}
+      {/* Abas e Barra de Filtro Unificado (MOBILE UPGRADED) */}
       <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-col xl:flex-row justify-between items-center gap-4">
-        <div className="flex flex-wrap gap-2 justify-center">
-          <button onClick={() => setActiveTab("INDICADORES")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "INDICADORES" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Painel</button>
-          <button onClick={() => setActiveTab("SERVIDORES")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "SERVIDORES" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Servidores</button>
-          <button onClick={() => setActiveTab("ESPELHO")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESPELHO" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Espelho</button>
-          <button onClick={() => setActiveTab("ESCALAS")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "ESCALAS" ? "bg-[#0f2a4a] text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>Escalas e Folha</button>
+        
+        {/* Menu Deslizável no Telemóvel */}
+        <div className="flex overflow-x-auto w-full xl:w-auto gap-2 scrollbar-hide snap-x pb-1">
+          <button onClick={() => setActiveTab("INDICADORES")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "INDICADORES" ? "bg-blue-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Painel</button>
+          <button onClick={() => setActiveTab("SERVIDORES")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "SERVIDORES" ? "bg-[#0f2a4a] text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Servidores</button>
+          <button onClick={() => setActiveTab("ESPELHO")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "ESPELHO" ? "bg-[#0f2a4a] text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Espelho</button>
+          <button onClick={() => setActiveTab("ESCALAS")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "ESCALAS" ? "bg-[#0f2a4a] text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Escalas e Folha</button>
           
-          <button onClick={() => setActiveTab("ATESTADOS")} className={`px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 ${activeTab === "ATESTADOS" ? "bg-green-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>
+          <button onClick={() => setActiveTab("ATESTADOS")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 transition-all ${activeTab === "ATESTADOS" ? "bg-green-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>
             Atestados
             {atestadosCadastrados.filter(a => a.status === 'PENDENTE').length > 0 && (
               <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-xs animate-pulse shadow-sm">
@@ -177,15 +183,17 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
             )}
           </button>
           
-          <button onClick={() => setActiveTab("FISCAL")} className={`px-4 py-2 text-sm font-bold rounded-lg ${activeTab === "FISCAL" ? "bg-amber-600 text-white shadow" : "text-gray-600 hover:bg-gray-200"}`}>MTE 671</button>
+          <button onClick={() => setActiveTab("FISCAL")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "FISCAL" ? "bg-amber-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>MTE 671</button>
         </div>
 
-        <div className="flex items-center gap-4 w-full xl:w-auto justify-end">
-          <select value={filtroUnidade} onChange={(e) => setFiltroUnidade(e.target.value)} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-xs font-bold text-[#0f2a4a] shadow-sm focus:ring-2 focus:ring-blue-500">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full xl:w-auto justify-end border-t border-gray-200 xl:border-0 pt-3 xl:pt-0">
+          <select value={filtroUnidade} onChange={(e) => setFiltroUnidade(e.target.value)} className="w-full sm:w-auto px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm font-bold text-[#0f2a4a] shadow-sm focus:ring-2 focus:ring-blue-500">
             <option value="">Consolidado de Todas as Unidades</option>
             {unidades.map((u:any) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <Link href="/dashboard" className="text-sm font-bold text-[#0f2a4a] hover:underline whitespace-nowrap">&larr; Voltar</Link>
+          <Link href="/dashboard" className="w-full sm:w-auto text-center text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+            &larr; Voltar
+          </Link>
         </div>
       </div>
 
@@ -221,7 +229,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
               <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
                 <h3 className="font-bold text-[#0f2a4a] border-b border-gray-200 pb-2 mb-4">Distribuição de Escalas de Trabalho</h3>
                 <div className="space-y-4">
-                  {Object.keys(contagemEscalas).length === 0 ? <p className="text-sm text-gray-500 italic">Nenhum servidor.</p> : Object.entries(contagemEscalas).map(([escala, quantidade]) => <ProgressBar key={escala} label={escala} valor={quantidade as number} total={servs.length} color="bg-[#0f2a4a]" />)}
+                  {Object.keys(contagemEscalas).length === 0 ? <p className="text-sm text-gray-500 italic">Nenhum servidor cadastrado.</p> : Object.entries(contagemEscalas).map(([escala, quantidade]) => <ProgressBar key={escala} label={escala} valor={quantidade as number} total={servs.length} color="bg-[#0f2a4a]" />)}
                 </div>
               </div>
             </div>
@@ -244,12 +252,12 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                   {servs.map((s: any) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 font-bold text-gray-900">{s.nome}</td>
-                      <td className="px-6 py-4 font-mono text-gray-500">CPF: {s.cpf}</td>
+                      <td className="px-6 py-4 font-mono text-gray-500">CPF: {s.cpf}<br/>PIS: {s.pis || 'Não cadastrado'}</td>
                       <td className="px-6 py-4 text-gray-900">{s.cargo}</td>
                       <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
                       <td className="px-6 py-4 text-right space-x-4">
                         <button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold">Editar</button>
-                        <a href={`/dashboard/rh/espelho?servidorId=${s.id}`} target="_blank" className="text-green-700 hover:underline font-bold">Espelho</a>
+                        <a href={`/dashboard/rh/espelho?servidorId=${s.id}`} target="_blank" className="text-green-700 hover:underline font-bold">Espelho PDF</a>
                       </td>
                     </tr>
                   ))}
@@ -307,11 +315,11 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
             </div>
             
             <div className="lg:col-span-2 bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                 <h3 className="text-lg font-black text-[#0f2a4a]">Agenda Oficial</h3>
                 
-                {/* NOVO: O BOTÃO DE FECHAMENTO DE FOLHA */}
-                <button onClick={baixarFolhaPagamento} disabled={loading} className="bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2 rounded-xl shadow flex items-center gap-2 transition-colors disabled:opacity-50 active:scale-95">
+                {/* O BOTÃO DE FECHAMENTO DE FOLHA */}
+                <button onClick={baixarFolhaPagamento} disabled={loading} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow flex justify-center items-center gap-2 transition-colors disabled:opacity-50 active:scale-95">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                   {loading ? "Calculando..." : "Fechar Folha (Excel)"}
                 </button>
@@ -393,7 +401,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         {activeTab === "FISCAL" && (
           <div className="max-w-2xl bg-amber-50 border border-amber-200 rounded-xl p-6 space-y-4 animate-in fade-in duration-300">
             <div className="flex items-start space-x-3"><div className="p-2 bg-amber-600 text-white rounded-lg font-bold">671</div><div><h3 className="font-bold text-amber-900 text-lg">Módulo Fiscal Trabalhista</h3><p className="text-sm text-amber-800">Em conformidade com a Portaria 671 MTE.</p></div></div>
-            <div className="border-t border-amber-200 pt-4"><button onClick={baixarArquivoAFD} className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm px-5 py-2.5 rounded-lg shadow">Baixar Arquivo AFD (.TXT)</button></div>
+            <div className="border-t border-amber-200 pt-4"><button onClick={baixarArquivoAFD} className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm px-5 py-3 rounded-xl shadow transition-transform active:scale-95">Baixar Arquivo AFD (.TXT)</button></div>
           </div>
         )}
       </div>
