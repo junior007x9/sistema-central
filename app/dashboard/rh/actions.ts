@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "../../../db";
-import { servidores, pontos, auditLogs, escalasPlantao, solicitacoesAbono } from "../../../db/schema";
+import { servidores, pontos, auditLogs, escalasPlantao, solicitacoesAbono, centers } from "../../../db/schema";
 import { eq } from "drizzle-orm";
 
 async function registrarLog(entidade: string, acao: string, detalhe: string, observacao: string) {
@@ -84,9 +84,6 @@ export async function listarEscalasAction() {
   return await db.select().from(escalasPlantao);
 }
 
-// =====================================
-// NOVO: Ações da Caixa de Atestados
-// =====================================
 export async function listarAtestadosAction() {
   return await db.select().from(solicitacoesAbono);
 }
@@ -99,6 +96,49 @@ export async function avaliarAtestadoAction(formData: FormData) {
 
   await db.update(solicitacoesAbono).set({ status }).where(eq(solicitacoesAbono.id, id));
   await registrarLog("ATESTADOS", status, `ID: ${id}`, `RH marcou atestado como ${status}.`);
-
   return { success: `Atestado ${status.toLowerCase()} com sucesso!` };
+}
+
+// ==============================================================
+// NOVO: SUPER MOTOR DE CÁLCULO DE FOLHA DE PAGAMENTO (EXCEL/CSV)
+// ==============================================================
+export async function gerarFolhaPagamentoAction(centerIdFiltro?: string) {
+  const listaServidores = await db.select().from(servidores);
+  const listaPontos = await db.select().from(pontos);
+  const listaEscalas = await db.select().from(escalasPlantao);
+  const atestados = await db.select().from(solicitacoesAbono);
+  const listaUnidades = await db.select().from(centers);
+
+  let csv = "NOME;CPF;CARGO;LOTAÇÃO;ESCALA REGRADA;PLANTÕES AGENDADOS;DIAS TRABALHADOS (PONTO);ATESTADOS APROVADOS;STATUS DA FOLHA\n";
+
+  listaServidores.forEach(serv => {
+    // Filtro por unidade
+    if (centerIdFiltro && serv.centerId !== centerIdFiltro) return;
+
+    const unidade = listaUnidades.find(u => u.id === serv.centerId)?.name || "Desconhecida";
+    
+    // Matemática da Folha
+    const plantoesAgendados = listaEscalas.filter(e => e.servidorId === serv.id).length;
+    
+    // Pega as presenças reais (dias únicos em que o relógio bateu NORMAL)
+    const pontosServidor = listaPontos.filter(p => p.servidorId === serv.id && p.statusPonto === 'NORMAL');
+    const diasPresentes = new Set(pontosServidor.map(p => new Date(p.dataHora).toLocaleDateString('pt-BR'))).size;
+    
+    // Atestados válidos que justificam faltas
+    const atestadosAprovados = atestados.filter(a => a.servidorId === serv.id && a.status === 'APROVADO').length;
+
+    // Inteligência de Alertas
+    let statusFolha = "OK - FECHAMENTO REDONDO";
+    if (plantoesAgendados > 0 && plantoesAgendados > (diasPresentes + atestadosAprovados)) {
+      statusFolha = "⚠️ FALTAS INJUSTIFICADAS / DESCONTAR EM FOLHA";
+    } else if (diasPresentes > plantoesAgendados && plantoesAgendados > 0) {
+      statusFolha = "💰 HORAS EXTRAS DETECTADAS";
+    } else if (plantoesAgendados === 0 && diasPresentes === 0) {
+      statusFolha = "SEM DADOS NO MÊS";
+    }
+
+    csv += `${serv.nome};${serv.cpf};${serv.cargo};${unidade};${serv.escala};${plantoesAgendados};${diasPresentes};${atestadosAprovados};${statusFolha}\n`;
+  });
+
+  return { success: true, conteudo: csv, fileName: `Folha_Pagamento_FASE.csv` };
 }
