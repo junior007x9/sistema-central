@@ -153,3 +153,11 @@ export const candidatos = sqliteTable('candidatos', {
   status: text('status', { enum: ['CADASTRO DE RESERVA', 'CONVOCADO', 'REJEITADO'] }).notNull().default('CADASTRO DE RESERVA'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
+// ==========================================
+// NOVO MÓDULO: CARGOS E FUNÇÕES
+// ==========================================
+export const cargos = sqliteTable('cargos', {
+  id: text('id').primaryKey(),
+  nome: text('nome').notNull().unique(),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
