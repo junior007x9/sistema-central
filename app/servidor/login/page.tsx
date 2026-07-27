@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { loginServidorAction } from "../actions";
+import { autenticarServidorAction } from "./actions";
 
 export default function ServidorLoginPage() {
   const [error, setError] = useState("");
@@ -13,7 +13,7 @@ export default function ServidorLoginPage() {
     setLoading(true);
     setError("");
     const formData = new FormData(e.currentTarget);
-    const result = await loginServidorAction(formData);
+    const result = await autenticarServidorAction(formData);
     if (result?.error) {
       setError(result.error);
       setLoading(false);
@@ -39,7 +39,8 @@ export default function ServidorLoginPage() {
 
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Senha de Acesso</label>
-            <input type="password" name="senha" required placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+            {/* O name="password" é obrigatório aqui para bater com o motor de segurança */}
+            <input type="password" name="password" required placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
           </div>
 
           <button type="submit" disabled={loading} className="w-full bg-[#0f2a4a] text-white font-black py-4 rounded-xl shadow-lg hover:bg-blue-900 transition-all active:scale-95 mt-4">

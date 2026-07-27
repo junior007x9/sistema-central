@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { loginAction } from "./actions";
+import { autenticarGestorAction } from "./actions";
 import Image from "next/image";
 
 export default function LoginPage() {
@@ -14,7 +14,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const formData = new FormData(event.currentTarget);
-    const result = await loginAction(null, formData);
+    const result = await autenticarGestorAction(formData);
 
     if (result && result.error) {
       setError(result.error);
