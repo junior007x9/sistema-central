@@ -1,17 +1,68 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-// Importamos as ações de Escala e as novas ações de Atestados
 import { 
   salvarServidorAction, tratarPontoAction, gerarArquivoAFDAction, 
   salvarPlantaoAction, listarEscalasAction,
   listarAtestadosAction, avaliarAtestadoAction,
-  gerarFolhaPagamentoAction
+  gerarFolhaPagamentoAction, salvarEventoAusenciaAction,
+  listarEventosAusenciaAction, listarHistoricoFuncionalAction,
+  salvarCandidatoAction, listarCandidatosAction
 } from "./actions";
 
-type Tab = "INDICADORES" | "SERVIDORES" | "ESPELHO" | "ESCALAS" | "ATESTADOS" | "FISCAL";
+type Tab = "INDICADORES" | "SERVIDORES" | "RECRUTAMENTO" | "RELATORIOS" | "ESPELHO" | "ESCALAS" | "ATESTADOS" | "FISCAL";
+
+const handleMaskCPF_RG = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let v = e.target.value.replace(/\D/g, "");
+  if (v.length > 11) v = v.slice(0, 11);
+  v = v.replace(/(\d{3})(\d)/, "$1.$2");
+  v = v.replace(/(\d{3})(\d)/, "$1.$2");
+  v = v.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+  e.target.value = v;
+};
+
+const handleMaskTelefone = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let v = e.target.value.replace(/\D/g, "");
+  if (v.length > 11) v = v.slice(0, 11);
+  v = v.replace(/^(\d{2})(\d)/g, "($1) $2");
+  v = v.replace(/(\d{5})(\d)/, "$1-$2");
+  e.target.value = v;
+};
+
+const handleMaskCEP = (e: React.ChangeEvent<HTMLInputElement>) => {
+  let v = e.target.value.replace(/\D/g, "");
+  if (v.length > 8) v = v.slice(0, 8);
+  v = v.replace(/^(\d{5})(\d)/, "$1-$2");
+  e.target.value = v;
+};
+
+const formatCPF_RG_OnLoad = (cpf: string) => {
+  if (!cpf) return "";
+  const v = cpf.replace(/\D/g, "");
+  if (v.length === 11) return v.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, "$1.$2.$3-$4");
+  return v;
+};
+
+const formatTelefone_OnLoad = (tel: string) => {
+  if (!tel) return "";
+  const v = tel.replace(/\D/g, "");
+  if (v.length === 11) return v.replace(/(\d{2})(\d{5})(\d{4})/, "($1) $2-$3");
+  if (v.length === 10) return v.replace(/(\d{2})(\d{4})(\d{4})/, "($1) $2-$3");
+  return v;
+};
+
+const calcularTempoServico = (dataAdmissao: string) => {
+  if (!dataAdmissao) return "Data não informada";
+  const inicio = new Date(dataAdmissao);
+  const hoje = new Date();
+  let anos = hoje.getFullYear() - inicio.getFullYear();
+  let meses = hoje.getMonth() - inicio.getMonth();
+  if (meses < 0 || (meses === 0 && hoje.getDate() < inicio.getDate())) { anos--; meses += 12; }
+  if (anos < 0) return "Admissão Futura";
+  return `${anos} ano(s) e ${meses} mês(es)`;
+};
 
 export default function RHClient({ unidades, servidores, pontos }: any) {
   const router = useRouter();
@@ -21,17 +72,28 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   const [filtroUnidade, setFiltroUnidade] = useState("");
 
   const [escalasCadastradas, setEscalasCadastradas] = useState<any[]>([]);
-  // NOVO: Estado para guardar os atestados vindos do banco
   const [atestadosCadastrados, setAtestadosCadastrados] = useState<any[]>([]);
-
+  const [eventosCadastrados, setEventosCadastrados] = useState<any[]>([]);
+  const [historicoFuncional, setHistoricoFuncional] = useState<any[]>([]);
+  const [candidatosCadastrados, setCandidatosCadastrados] = useState<any[]>([]); 
+  
+  const [tempoServicoLive, setTempoServicoLive] = useState<string>("Preencha a data...");
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // NOVO: Adicionado "VER_ATESTADO" aos tipos de Modal
-  const [modalType, setModalType] = useState<"MANUTENCAO_SERVIDOR" | "TRATAR_PONTO" | "VER_ATESTADO" | null>(null);
+  const [modalType, setModalType] = useState<"MANUTENCAO_SERVIDOR" | "TRATAR_PONTO" | "VER_ATESTADO" | "FICHA_FUNCIONAL" | "MANUTENCAO_CANDIDATO" | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+
+  const [loadingCep, setLoadingCep] = useState(false);
+  const enderecoRef = useRef<HTMLInputElement>(null);
+
+  // ESTADOS DOS RELATÓRIOS
+  const [tipoRelatorio, setTipoRelatorio] = useState<"QUANTITATIVO" | "CADASTRAL" | "FERIAS" | "ANIVERSARIANTES">("QUANTITATIVO");
+  const [mesAniversario, setMesAniversario] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
 
   useEffect(() => {
     listarEscalasAction().then(setEscalasCadastradas);
-    listarAtestadosAction().then(setAtestadosCadastrados); // Carrega a caixa de entrada
+    listarAtestadosAction().then(setAtestadosCadastrados);
+    listarEventosAusenciaAction().then(setEventosCadastrados);
+    listarCandidatosAction().then(setCandidatosCadastrados);
   }, []);
 
   function closeModal() {
@@ -39,6 +101,45 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     setModalType(null);
     setSelectedItem(null);
     setMessage(null);
+    setTempoServicoLive("Preencha a data...");
+  }
+
+  async function openFichaFuncional(servidor: any) {
+    setSelectedItem(servidor);
+    setModalType("FICHA_FUNCIONAL");
+    setIsModalOpen(true);
+    const logs = await listarHistoricoFuncionalAction(servidor.id);
+    setHistoricoFuncional(logs);
+  }
+
+  async function buscarCEP(cepStr: string) {
+    const cepClean = cepStr.replace(/\D/g, "");
+    if (cepClean.length === 8) {
+      setLoadingCep(true);
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cepClean}/json/`);
+        const data = await res.json();
+        if (!data.erro && enderecoRef.current) {
+          enderecoRef.current.value = `${data.logradouro}, Nº , ${data.bairro}, ${data.localidade} - ${data.uf}`;
+          enderecoRef.current.focus(); 
+        }
+      } catch (e) { console.error("Erro ao buscar CEP", e); }
+      setLoadingCep(false);
+    }
+  }
+
+  async function handleCandidatoSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    const formData = new FormData(event.currentTarget);
+    const result = await salvarCandidatoAction(formData);
+    if (result?.error) setMessage({ type: "error", text: result.error });
+    else {
+      const novosCandidatos = await listarCandidatosAction();
+      setCandidatosCadastrados(novosCandidatos);
+      closeModal();
+    }
+    setLoading(false);
   }
 
   async function handleServidorSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -48,6 +149,22 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     const result = await salvarServidorAction(formData);
     if (result?.error) setMessage({ type: "error", text: result.error });
     else { closeModal(); router.refresh(); }
+    setLoading(false);
+  }
+
+  async function handleEventoAusenciaSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    const formData = new FormData(event.currentTarget);
+    const result = await salvarEventoAusenciaAction(formData);
+    if (result?.error) { alert(result.error); } 
+    else {
+      const novosEventos = await listarEventosAusenciaAction();
+      setEventosCadastrados(novosEventos);
+      const logs = await listarHistoricoFuncionalAction(selectedItem.id);
+      setHistoricoFuncional(logs);
+      (event.target as HTMLFormElement).reset();
+    }
     setLoading(false);
   }
 
@@ -66,25 +183,22 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const result = await salvarPlantaoAction(formData);
-    if (result?.error) {
-      alert(result.error);
-    } else {
+    if (result?.error) alert(result.error);
+    else {
       const novasEscalas = await listarEscalasAction();
       setEscalasCadastradas(novasEscalas);
-      (e.target as HTMLFormElement).reset(); // Limpa o formulário
+      (e.target as HTMLFormElement).reset();
     }
     setLoading(false);
   }
 
-  // NOVO: Função para o RH Aprovar ou Rejeitar a foto do atestado
   async function handleAvaliarAtestado(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     const formData = new FormData(e.currentTarget);
     const result = await avaliarAtestadoAction(formData);
-    if (result?.error) {
-      alert(result.error);
-    } else {
+    if (result?.error) alert(result.error);
+    else {
       const novosAtestados = await listarAtestadosAction();
       setAtestadosCadastrados(novosAtestados);
       closeModal();
@@ -106,14 +220,10 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     }
   }
 
-  // =======================================================
-  // Função para baixar o Excel da Folha de Pagamento
-  // =======================================================
   async function baixarFolhaPagamento() {
     setLoading(true);
     const result = await gerarFolhaPagamentoAction(filtroUnidade || undefined);
     if (result?.success && result.conteudo) {
-      // O \uFEFF avisa o Excel que o ficheiro tem acentos latinos (UTF-8)
       const blob = new Blob(["\uFEFF" + result.conteudo], { type: "text/csv;charset=utf-8" });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -126,10 +236,21 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     setLoading(false);
   }
 
-  // Lógica de Indicadores
+  function exportarRelatorioCSV(colunas: string[], linhas: string[][], nomeArquivo: string) {
+    let csv = colunas.join(";") + "\n";
+    linhas.forEach(linha => { csv += linha.join(";") + "\n"; });
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `${nomeArquivo}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
   const servs = servidores.filter((s:any) => !filtroUnidade || s.centerId === filtroUnidade);
   const pts = pontos.filter((p:any) => !filtroUnidade || p.centerId === filtroUnidade);
-  // Filtro da Caixa de Entrada de Atestados
   const atestadosFiltrados = atestadosCadastrados.filter(a => !filtroUnidade || a.centerId === filtroUnidade);
 
   const totalAtivos = servs.filter((s:any) => s.status === 'ATIVO').length;
@@ -141,6 +262,23 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   const ptsAbonos = pts.filter((p:any) => p.statusPonto === 'ABONO').length;
   const totalPts = pts.length;
 
+  const contagemCargos = servs.reduce((acc: any, s:any) => { acc[s.cargo] = (acc[s.cargo] || 0) + 1; return acc; }, {});
+  const contagemLotacoes = servs.reduce((acc: any, s:any) => {
+    const nomeUnidade = unidades.find((u:any) => u.id === s.centerId)?.name || 'Desconhecida';
+    acc[nomeUnidade] = (acc[nomeUnidade] || 0) + 1; return acc;
+  }, {});
+  
+  const aniversariantesMes = servs.filter((s:any) => {
+    if (!s.dataNascimento) return false;
+    const mes = s.dataNascimento.split('-')[1];
+    return mes === mesAniversario;
+  });
+
+  const feriasAgendadas = eventosCadastrados.filter(e => e.tipo === 'FÉRIAS').filter(e => {
+    const serv = servidores.find((s:any) => s.id === e.servidorId);
+    return !filtroUnidade || serv?.centerId === filtroUnidade;
+  });
+
   const contagemEscalas = servs.reduce((acc: any, s:any) => {
     acc[s.escala] = (acc[s.escala] || 0) + 1;
     return acc;
@@ -150,13 +288,8 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     const porcentagem = total > 0 ? Math.round((valor / total) * 100) : 0;
     return (
       <div className="space-y-1">
-        <div className="flex justify-between text-xs font-semibold text-gray-700">
-          <span>{label}</span>
-          <span>{valor} ({porcentagem}%)</span>
-        </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
-          <div className={`${color} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${porcentagem}%` }}></div>
-        </div>
+        <div className="flex justify-between text-xs font-semibold text-gray-700"><span>{label}</span><span>{valor} ({porcentagem}%)</span></div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5"><div className={`${color} h-2.5 rounded-full transition-all duration-500`} style={{ width: `${porcentagem}%` }}></div></div>
       </div>
     );
   };
@@ -164,25 +297,18 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
       
-      {/* Abas e Barra de Filtro Unificado (MOBILE UPGRADED) */}
+      {/* MENU PRINCIPAL HORIZONTAL */}
       <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-col xl:flex-row justify-between items-center gap-4">
-        
-        {/* Menu Deslizável no Telemóvel */}
         <div className="flex overflow-x-auto w-full xl:w-auto gap-2 scrollbar-hide snap-x pb-1">
           <button onClick={() => setActiveTab("INDICADORES")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "INDICADORES" ? "bg-blue-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Painel</button>
           <button onClick={() => setActiveTab("SERVIDORES")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "SERVIDORES" ? "bg-[#0f2a4a] text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Servidores</button>
+          <button onClick={() => setActiveTab("RECRUTAMENTO")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "RECRUTAMENTO" ? "bg-teal-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Recrutamento</button>
+          <button onClick={() => setActiveTab("RELATORIOS")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "RELATORIOS" ? "bg-purple-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Relatórios</button>
           <button onClick={() => setActiveTab("ESPELHO")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "ESPELHO" ? "bg-[#0f2a4a] text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Espelho</button>
           <button onClick={() => setActiveTab("ESCALAS")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "ESCALAS" ? "bg-[#0f2a4a] text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>Escalas e Folha</button>
-          
           <button onClick={() => setActiveTab("ATESTADOS")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 transition-all ${activeTab === "ATESTADOS" ? "bg-green-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>
-            Atestados
-            {atestadosCadastrados.filter(a => a.status === 'PENDENTE').length > 0 && (
-              <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-xs animate-pulse shadow-sm">
-                {atestadosCadastrados.filter(a => a.status === 'PENDENTE').length}
-              </span>
-            )}
+            Atestados {atestadosCadastrados.filter(a => a.status === 'PENDENTE').length > 0 && <span className="bg-red-500 text-white px-2 py-0.5 rounded-full text-xs animate-pulse shadow-sm">{atestadosCadastrados.filter(a => a.status === 'PENDENTE').length}</span>}
           </button>
-          
           <button onClick={() => setActiveTab("FISCAL")} className={`snap-start whitespace-nowrap px-4 py-2 text-sm font-bold rounded-lg transition-all ${activeTab === "FISCAL" ? "bg-amber-600 text-white shadow-md scale-105" : "text-gray-600 bg-transparent hover:bg-gray-200"}`}>MTE 671</button>
         </div>
 
@@ -191,9 +317,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
             <option value="">Consolidado de Todas as Unidades</option>
             {unidades.map((u:any) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
-          <Link href="/dashboard" className="w-full sm:w-auto text-center text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
-            &larr; Voltar
-          </Link>
+          <Link href="/dashboard" className="w-full sm:w-auto text-center text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg transition-colors whitespace-nowrap">&larr; Voltar</Link>
         </div>
       </div>
 
@@ -216,7 +340,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                 <div className="flex justify-between items-end"><span className="text-5xl font-black text-amber-500">{ptsJustificados + ptsAbonos}</span><span className="text-sm font-bold text-gray-500 mb-1">Pontos Ajustados</span></div>
               </div>
             </div>
-
+            
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
                 <h3 className="font-bold text-[#0f2a4a] border-b border-gray-200 pb-2 mb-4">Análise de Ocorrências do Ponto</h3>
@@ -241,24 +365,21 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           <div className="animate-in fade-in duration-300">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-lg font-bold text-gray-800">Quadro Corporativo FASE/MA</h3>
-              <button onClick={() => { setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="bg-[#0f2a4a] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#1a3a6a]">+ Cadastrar Servidor</button>
+              <button onClick={() => { setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="bg-[#0f2a4a] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-[#1a3a6a] shadow-sm">+ Cadastrar Servidor</button>
             </div>
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200 border text-sm">
                 <thead className="bg-gray-50">
-                  <tr><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Nome</th><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">CPF / PIS</th><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Cargo</th><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Status</th><th className="px-6 py-3 text-right font-bold text-gray-500 uppercase">Ações</th></tr>
+                  <tr><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Nome</th><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Cargo</th><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Vínculo</th><th className="px-6 py-3 text-left font-bold text-gray-500 uppercase">Status</th><th className="px-6 py-3 text-right font-bold text-gray-500 uppercase">Ações</th></tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {servs.map((s: any) => (
                     <tr key={s.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 font-bold text-gray-900">{s.nome}</td>
-                      <td className="px-6 py-4 font-mono text-gray-500">CPF: {s.cpf}<br/>PIS: {s.pis || 'Não cadastrado'}</td>
-                      <td className="px-6 py-4 text-gray-900">{s.cargo}</td>
-                      <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
-                      <td className="px-6 py-4 text-right space-x-4">
-                        <button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold">Editar</button>
-                        <a href={`/dashboard/rh/espelho?servidorId=${s.id}`} target="_blank" className="text-green-700 hover:underline font-bold">Espelho PDF</a>
-                      </td>
+                      <td className="px-6 py-4"><div className="font-bold text-gray-900">{s.nome}</div><div className="text-xs text-gray-500 font-mono mt-0.5">{formatCPF_RG_OnLoad(s.cpf)}</div></td>
+                      <td className="px-6 py-4 text-gray-900 font-medium">{s.cargo}</td>
+                      <td className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{s.vinculo || 'Não Informado'}</td>
+                      <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
+                      <td className="px-6 py-4 text-right space-x-3"><button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold text-xs bg-blue-50 px-2 py-1 rounded">Editar Info</button><button onClick={() => openFichaFuncional(s)} className="text-purple-600 hover:underline font-bold text-xs bg-purple-50 px-2 py-1 rounded">Ficha / Férias</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -267,7 +388,127 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           </div>
         )}
 
-        {/* TAB 3: ESPELHO */}
+        {/* TAB 3: RECRUTAMENTO */}
+        {activeTab === "RECRUTAMENTO" && (
+          <div className="animate-in fade-in duration-300">
+            <div className="flex justify-between items-center mb-6">
+              <div><h3 className="text-lg font-bold text-teal-900">Banco de Talentos (Reserva)</h3><p className="text-sm text-teal-700">Registe currículos de candidatos para futuras convocações.</p></div>
+              <button onClick={() => { setModalType("MANUTENCAO_CANDIDATO"); setIsModalOpen(true); }} className="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-teal-700 shadow-sm">+ Adicionar Currículo</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {candidatosCadastrados.length === 0 ? (
+                <div className="col-span-full py-16 text-center border-2 border-dashed border-teal-200 rounded-2xl bg-teal-50/30"><p className="text-teal-700 font-bold text-lg">Nenhum candidato registado.</p><p className="text-teal-600/70 text-sm">O Cadastro de Reserva está vazio no momento.</p></div>
+              ) : (
+                candidatosCadastrados.map((cand) => (
+                  <div key={cand.id} className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative">
+                    <div className="flex justify-between items-start mb-2"><span className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest border ${cand.status === 'CONVOCADO' ? 'bg-green-100 text-green-800 border-green-200' : cand.status === 'REJEITADO' ? 'bg-red-100 text-red-800 border-red-200' : 'bg-teal-100 text-teal-800 border-teal-200'}`}>{cand.status}</span><button onClick={() => { setSelectedItem(cand); setModalType("MANUTENCAO_CANDIDATO"); setIsModalOpen(true); }} className="text-gray-400 hover:text-blue-600 text-xs font-bold underline">Editar</button></div>
+                    <h4 className="font-black text-gray-800 text-lg leading-tight mb-1">{cand.nome}</h4>
+                    <div className="text-xs text-gray-600 space-y-1 mt-3 mb-4"><p><strong>CPF:</strong> <span className="font-mono">{formatCPF_RG_OnLoad(cand.cpf)}</span></p><p><strong>E-mail:</strong> {cand.email}</p><p><strong>Telefone:</strong> <span className="font-mono">{formatTelefone_OnLoad(cand.telefone)}</span></p></div>
+                    <div className="bg-gray-50 p-3 rounded-lg border border-gray-100"><span className="block text-[10px] font-black text-teal-800 uppercase tracking-wider mb-1">Qualificação / Área de Adaptação</span><p className="text-xs text-gray-700 leading-relaxed italic">&quot;{cand.qualificacao}&quot;</p></div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: RELATORIOS */}
+        {activeTab === "RELATORIOS" && (
+          <div className="animate-in fade-in duration-300">
+            <div className="flex flex-wrap gap-3 mb-8 bg-purple-50 p-3 rounded-xl border border-purple-100">
+              <button onClick={() => setTipoRelatorio("QUANTITATIVO")} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${tipoRelatorio === "QUANTITATIVO" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 hover:bg-purple-100"}`}>📊 Quantitativo e Lotação</button>
+              <button onClick={() => setTipoRelatorio("CADASTRAL")} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${tipoRelatorio === "CADASTRAL" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 hover:bg-purple-100"}`}>📋 Filtro Cadastral (Dados Pessoais)</button>
+              <button onClick={() => setTipoRelatorio("FERIAS")} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${tipoRelatorio === "FERIAS" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 hover:bg-purple-100"}`}>🏖️ Controle de Férias</button>
+              <button onClick={() => setTipoRelatorio("ANIVERSARIANTES")} className={`px-4 py-2 rounded-lg text-sm font-bold transition-colors ${tipoRelatorio === "ANIVERSARIANTES" ? "bg-purple-600 text-white shadow-md" : "bg-white text-purple-700 hover:bg-purple-100"}`}>🎂 Lista de Aniversariantes</button>
+            </div>
+
+            {tipoRelatorio === "QUANTITATIVO" && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center border-b pb-2"><div><h3 className="text-lg font-black text-gray-800">Relatório de Quantitativo Físico</h3><p className="text-sm text-gray-500">Distribuição da força de trabalho por cargo e unidade (Aplicando filtro superior de lotação).</p></div><div className="bg-purple-100 text-purple-800 px-4 py-2 rounded-xl font-black shadow-sm">Total Filtrado: {servs.length} Servidores</div></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm"><h4 className="font-bold text-[#0f2a4a] border-b border-gray-100 pb-2 mb-4">Quantitativo por Cargo</h4><div className="space-y-4">{Object.keys(contagemCargos).length === 0 ? <p className="text-sm text-gray-500">Nenhum dado.</p> : Object.entries(contagemCargos).sort((a:any, b:any) => b[1] - a[1]).map(([cargo, qtd]) => (<ProgressBar key={cargo} label={cargo} valor={qtd as number} total={servs.length} color="bg-blue-500" />))}</div></div>
+                  {!filtroUnidade && (<div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm"><h4 className="font-bold text-[#0f2a4a] border-b border-gray-100 pb-2 mb-4">Quantitativo por Lotação (Unidade)</h4><div className="space-y-4">{Object.keys(contagemLotacoes).length === 0 ? <p className="text-sm text-gray-500">Nenhum dado.</p> : Object.entries(contagemLotacoes).sort((a:any, b:any) => b[1] - a[1]).map(([lotacao, qtd]) => (<ProgressBar key={lotacao} label={lotacao} valor={qtd as number} total={servs.length} color="bg-purple-500" />))}</div></div>)}
+                </div>
+              </div>
+            )}
+
+            {tipoRelatorio === "CADASTRAL" && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b pb-2 mb-4"><div><h3 className="text-lg font-black text-gray-800">Filtro de Informações Pessoais</h3><p className="text-sm text-gray-500">Visão consolidada de documentos e histórico contratual dos servidores.</p></div><button onClick={() => exportarRelatorioCSV(["Nome", "CPF", "RG", "Cargo", "Unidade", "Vínculo", "Admissão", "Desligamento", "Status"], servs.map((s:any) => [s.nome, s.cpf, s.rg || 'Não Info', s.cargo, unidades.find((u:any) => u.id === s.centerId)?.name || '', s.vinculo || 'Não Info', s.dataAdmissao || '', s.dataDesligamento || '', s.status]), "Relatorio_Cadastral")} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">⬇️ Exportar CSV</button></div>
+                <div className="overflow-x-auto border rounded-xl shadow-sm">
+                  <table className="min-w-full divide-y divide-gray-200 text-xs">
+                    <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Servidor</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Documentação</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Lotação / Cargo</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Ciclo Contratual</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Status</th></tr></thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {servs.map((s:any) => (
+                        <tr key={s.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-bold text-gray-800">{s.nome}</td>
+                          <td className="px-4 py-3 text-gray-600"><div>CPF: {formatCPF_RG_OnLoad(s.cpf)}</div><div>RG: {s.rg ? formatCPF_RG_OnLoad(s.rg) : 'Não Info'}</div></td>
+                          <td className="px-4 py-3 text-gray-600"><div>{s.cargo}</div><div className="text-[10px] uppercase font-bold text-gray-400">{unidades.find((u:any) => u.id === s.centerId)?.name}</div></td>
+                          <td className="px-4 py-3 text-gray-600"><div>Adm: {s.dataAdmissao ? new Date(s.dataAdmissao).toLocaleDateString('pt-BR') : 'N/A'}</div>{s.dataDesligamento && <div className="text-red-600">Deslig: {new Date(s.dataDesligamento).toLocaleDateString('pt-BR')}</div>}</td>
+                          <td className="px-4 py-3"><span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {tipoRelatorio === "FERIAS" && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center border-b pb-2 mb-4"><div><h3 className="text-lg font-black text-gray-800">Relatório de Férias por Período Aquisitivo</h3><p className="text-sm text-gray-500">Listagem de todos os eventos de Férias Regulamentares agendados e aprovados.</p></div><button onClick={() => exportarRelatorioCSV(["Servidor", "Unidade", "Data Início", "Data Retorno", "Status", "Portaria/Observacao"], feriasAgendadas.map((f:any) => { const serv = servidores.find((s:any) => s.id === f.servidorId); return [serv?.nome || '', unidades.find((u:any) => u.id === serv?.centerId)?.name || '', f.dataInicio, f.dataFim, f.status, f.observacao || '']; }), "Relatorio_Ferias")} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">⬇️ Exportar CSV</button></div>
+                <div className="overflow-x-auto border rounded-xl shadow-sm">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Servidor</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Lotação</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Período de Gozo</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Doc / Portaria</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Status</th></tr></thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {feriasAgendadas.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500 italic">Nenhum registo de férias encontrado para o filtro atual.</td></tr> : feriasAgendadas.map((ferias:any) => {
+                        const servidor = servidores.find((s:any) => s.id === ferias.servidorId);
+                        const unidade = unidades.find((u:any) => u.id === servidor?.centerId)?.name;
+                        return (
+                          <tr key={ferias.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 font-bold text-gray-800">{servidor?.nome}</td>
+                            <td className="px-4 py-3 text-gray-600 text-xs">{unidade}</td>
+                            <td className="px-4 py-3 font-mono text-xs text-blue-700 bg-blue-50 rounded px-2">{new Date(ferias.dataInicio).toLocaleDateString('pt-BR')} até {new Date(ferias.dataFim).toLocaleDateString('pt-BR')}</td>
+                            <td className="px-4 py-3 text-gray-500 text-xs">{ferias.observacao || 'Sem observação'}</td>
+                            <td className="px-4 py-3"><span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-green-100 text-green-800">{ferias.status}</span></td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {tipoRelatorio === "ANIVERSARIANTES" && (
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center border-b pb-4 gap-4 mb-4"><div><h3 className="text-lg font-black text-gray-800">Lista de Aniversariantes do Mês</h3><p className="text-sm text-gray-500">Cruze o mês desejado com o filtro de lotação superior.</p></div><div className="flex items-center gap-3 w-full md:w-auto"><select value={mesAniversario} onChange={(e) => setMesAniversario(e.target.value)} className="px-4 py-2 border border-purple-300 rounded-lg text-sm font-bold text-purple-900 bg-purple-50 shadow-sm focus:ring-2 focus:ring-purple-500"><option value="01">Janeiro</option><option value="02">Fevereiro</option><option value="03">Março</option><option value="04">Abril</option><option value="05">Maio</option><option value="06">Junho</option><option value="07">Julho</option><option value="08">Agosto</option><option value="09">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option></select><button onClick={() => exportarRelatorioCSV(["Nome", "Dia e Mes", "Cargo", "Lotação"], aniversariantesMes.map((s:any) => { const [, m, d] = s.dataNascimento.split('-'); return [s.nome, `${d}/${m}`, s.cargo, unidades.find((u:any) => u.id === s.centerId)?.name || '']; }), `Aniversariantes_Mes_${mesAniversario}`)} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 whitespace-nowrap">⬇️ Exportar</button></div></div>
+                <div className="overflow-x-auto border rounded-xl shadow-sm">
+                  <table className="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead className="bg-gray-50"><tr><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase w-20">Dia</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Servidor Aniversariante</th><th className="px-4 py-3 text-left font-bold text-gray-500 uppercase">Cargo e Lotação</th></tr></thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {aniversariantesMes.length === 0 ? <tr><td colSpan={3} className="px-4 py-8 text-center text-gray-500 italic">Nenhum aniversariante encontrado neste mês para o filtro selecionado.</td></tr> : 
+                        aniversariantesMes.sort((a:any, b:any) => Number(a.dataNascimento.split('-')[2]) - Number(b.dataNascimento.split('-')[2])).map((s:any) => {
+                          const [, mes, dia] = s.dataNascimento.split('-');
+                          const unidade = unidades.find((u:any) => u.id === s.centerId)?.name;
+                          return (
+                            <tr key={s.id} className="hover:bg-purple-50 transition-colors">
+                              <td className="px-4 py-3 font-black text-xl text-purple-600 text-center bg-purple-50/50">{dia}</td>
+                              <td className="px-4 py-3 font-bold text-gray-800 text-base">🎁 {s.nome}</td>
+                              <td className="px-4 py-3 text-gray-600 text-xs"><div>{s.cargo}</div><div className="font-bold uppercase text-gray-400 mt-0.5">{unidade}</div></td>
+                            </tr>
+                          )
+                        })
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 5: ESPELHO */}
         {activeTab === "ESPELHO" && (
           <div className="animate-in fade-in duration-300">
             <h3 className="text-lg font-bold text-gray-800 mb-4">Tratamento de Ponto Eletrônico Auditado</h3>
@@ -284,13 +525,8 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                         <td className="px-6 py-4 font-mono font-bold text-[#0f2a4a]">{new Date(p.dataHora).toLocaleString('pt-BR')}</td>
                         <td className="px-6 py-4 font-medium">{servidor?.nome || 'Desconhecido'}</td>
                         <td className="px-6 py-4"><span className={`px-2 py-0.5 rounded text-xs font-bold ${p.tipo === 'ENTRADA' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{p.tipo}</span></td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded text-xs font-bold ${p.statusPonto === 'NORMAL' ? 'bg-gray-100' : p.statusPonto === 'ABONO' ? 'bg-blue-100' : 'bg-amber-100'}`}>{p.statusPonto}</span>
-                          {p.justificativaRH && <p className="text-xs text-gray-500 mt-1 italic">Obs: {p.justificativaRH}</p>}
-                        </td>
-                        <td className="px-6 py-4 text-right">
-                          <button onClick={() => { setSelectedItem(p); setModalType("TRATAR_PONTO"); setIsModalOpen(true); }} className="text-amber-700 font-bold hover:underline">Ajustar</button>
-                        </td>
+                        <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${p.statusPonto === 'NORMAL' ? 'bg-gray-100' : p.statusPonto === 'ABONO' ? 'bg-blue-100' : 'bg-amber-100'}`}>{p.statusPonto}</span>{p.justificativaRH && <p className="text-xs text-gray-500 mt-1 italic">Obs: {p.justificativaRH}</p>}</td>
+                        <td className="px-6 py-4 text-right"><button onClick={() => { setSelectedItem(p); setModalType("TRATAR_PONTO"); setIsModalOpen(true); }} className="text-amber-700 font-bold hover:underline">Ajustar</button></td>
                       </tr>
                     );
                   })}
@@ -300,7 +536,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           </div>
         )}
 
-        {/* TAB 4: ESCALAS - COM O NOVO BOTÃO DE EXCEL */}
+        {/* TAB 6: ESCALAS E FOLHA */}
         {activeTab === "ESCALAS" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in duration-300">
             <div className="lg:col-span-1 bg-white border border-gray-200 p-6 rounded-xl shadow-sm h-fit">
@@ -317,8 +553,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
             <div className="lg:col-span-2 bg-gray-50 border border-gray-200 p-6 rounded-xl shadow-sm">
               <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
                 <h3 className="text-lg font-black text-[#0f2a4a]">Agenda Oficial</h3>
-                
-                {/* O BOTÃO DE FECHAMENTO DE FOLHA */}
                 <button onClick={baixarFolhaPagamento} disabled={loading} className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow flex justify-center items-center gap-2 transition-colors disabled:opacity-50 active:scale-95">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                   {loading ? "Calculando..." : "Fechar Folha (Excel)"}
@@ -348,7 +582,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           </div>
         )}
 
-        {/* TAB 5: CAIXA DE ATESTADOS (INBOX) */}
+        {/* TAB 7: ATESTADOS */}
         {activeTab === "ATESTADOS" && (
           <div className="animate-in fade-in duration-300">
             <h3 className="text-lg font-black text-[#0f2a4a] mb-2">Caixa de Entrada (Inbox RH)</h3>
@@ -397,7 +631,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
           </div>
         )}
 
-        {/* TAB 6: FISCALIZAÇÃO MTE */}
+        {/* TAB 8: FISCAL */}
         {activeTab === "FISCAL" && (
           <div className="max-w-2xl bg-amber-50 border border-amber-200 rounded-xl p-6 space-y-4 animate-in fade-in duration-300">
             <div className="flex items-start space-x-3"><div className="p-2 bg-amber-600 text-white rounded-lg font-bold">671</div><div><h3 className="font-bold text-amber-900 text-lg">Módulo Fiscal Trabalhista</h3><p className="text-sm text-amber-800">Em conformidade com a Portaria 671 MTE.</p></div></div>
@@ -406,37 +640,188 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         )}
       </div>
 
-      {/* MODAL GLOBAL: MANUTENÇÃO DE SERVIDORES */}
-      {isModalOpen && modalType === "MANUTENCAO_SERVIDOR" && (
+      {/* ========================================================================================================= */}
+      {/* MODAIS GLOBAIS (MANUTENCAO_CANDIDATO, MANUTENCAO_SERVIDOR, TRATAR_PONTO, FICHA_FUNCIONAL, VER_ATESTADO) */}
+      {/* ========================================================================================================= */}
+      
+      {/* MODAL: MANUTENÇÃO DE CANDIDATO */}
+      {isModalOpen && modalType === "MANUTENCAO_CANDIDATO" && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
-              <h3 className="font-bold text-[#0f2a4a]">{selectedItem ? "Editar Matrícula de Servidor" : "Cadastrar Novo Servidor"}</h3>
-              <button onClick={closeModal} className="text-gray-400 font-bold text-xl">&times;</button>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b bg-teal-50 flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-teal-900 text-lg">{selectedItem ? "Atualizar Ficha do Candidato" : "Registar Novo Currículo"}</h3>
+              <button onClick={closeModal} className="text-teal-700 hover:text-red-500 font-bold text-2xl transition-colors">&times;</button>
             </div>
-            <form onSubmit={handleServidorSubmit} className="p-6 space-y-4">
-              {message && <div className="bg-red-50 text-red-600 p-3 rounded-md text-xs">{message.text}</div>}
+            <form id="formCandidato" onSubmit={handleCandidatoSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 bg-white">
+              {message && <div className={`p-4 rounded-lg text-sm font-bold border flex items-start gap-3 shadow-sm ${message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-green-50 text-green-800 border-green-200'}`}><span>{message.text}</span></div>}
               {selectedItem && <input type="hidden" name="id" value={selectedItem.id} />}
-              <div><label className="block text-xs font-bold text-gray-700 mb-1">Nome Completo</label><input type="text" name="nome" defaultValue={selectedItem?.nome} required className="w-full px-3 py-2 border rounded-md text-sm" /></div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-gray-700 mb-1">CPF</label><input type="text" name="cpf" defaultValue={selectedItem?.cpf} required className="w-full px-3 py-2 border rounded-md font-mono text-sm" /></div>
-                <div><label className="block text-xs font-bold text-gray-700 mb-1">PIS</label><input type="text" name="pis" defaultValue={selectedItem?.pis} required className="w-full px-3 py-2 border rounded-md font-mono text-sm" /></div>
+              <div><label className="block text-xs font-bold text-gray-700 mb-1">Nome Completo *</label><input type="text" name="nome" defaultValue={selectedItem?.nome} required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-teal-500" /></div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><label className="block text-xs font-bold text-gray-700 mb-1">CPF *</label><input type="text" name="cpf" defaultValue={formatCPF_RG_OnLoad(selectedItem?.cpf)} onChange={handleMaskCPF_RG} placeholder="000.000.000-00" maxLength={14} required className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-teal-500" /></div>
+                <div><label className="block text-xs font-bold text-gray-700 mb-1">Telefone / WhatsApp *</label><input type="tel" name="telefone" defaultValue={formatTelefone_OnLoad(selectedItem?.telefone)} onChange={handleMaskTelefone} placeholder="(00) 00000-0000" maxLength={15} required className="w-full px-3 py-2 border rounded-md text-sm font-mono bg-gray-50 focus:bg-white focus:ring-2 focus:ring-teal-500" /></div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div><label className="block text-xs font-bold text-gray-700 mb-1">Cargo</label><input type="text" name="cargo" defaultValue={selectedItem?.cargo} required className="w-full px-3 py-2 border rounded-md text-sm" /></div>
-                <div><label className="block text-xs font-bold text-gray-700 mb-1">Escala</label><select name="escala" defaultValue={selectedItem?.escala || "5x2 - Administrativo"} className="w-full px-3 py-2 border rounded-md text-sm"><option value="5x2 - Administrativo">5x2 - Administrativo (8h)</option><option value="12x36 - Plantonista">12x36 - Plantonista</option></select></div>
-              </div>
-              <div><label className="block text-xs font-bold text-gray-700 mb-1">Lotação</label><select name="centerId" defaultValue={selectedItem?.centerId || ""} required className="w-full px-3 py-2 border rounded-md text-sm"><option value="">Selecione...</option>{unidades.map((u:any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
-              {selectedItem && (<div><label className="block text-xs font-bold text-gray-700 mb-1">Status</label><select name="status" defaultValue={selectedItem.status} className="w-full px-3 py-2 border rounded-md text-sm"><option value="ATIVO">ATIVO</option><option value="INATIVO">INATIVO</option></select></div>)}
-              <div className="pt-2 border-t"><label className="block text-xs font-bold text-amber-700 mb-1">Justificativa da Alteração</label><textarea name="observacao" required rows={2} className="w-full px-3 py-2 bg-amber-50 border-amber-200 border rounded-md text-sm"></textarea></div>
-              <div className="flex justify-end space-x-3 pt-2"><button type="button" onClick={closeModal} className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg text-sm font-bold">Cancelar</button><button type="submit" disabled={loading} className="px-5 py-2 bg-[#0f2a4a] text-white rounded-lg text-sm font-bold">{loading ? "Salvando..." : "Confirmar Matrícula"}</button></div>
+              <div><label className="block text-xs font-bold text-gray-700 mb-1">Endereço de E-mail *</label><input type="email" name="email" defaultValue={selectedItem?.email} required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-teal-500" /></div>
+              <div><label className="block text-xs font-bold text-gray-700 mb-1">Qualificação / Área de Adaptação *</label><textarea name="qualificacao" defaultValue={selectedItem?.qualificacao} required rows={3} placeholder="Resumo das habilidades..." className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-teal-500"></textarea></div>
+              {selectedItem && (
+                <div className="pt-2 border-t border-gray-100"><label className="block text-xs font-bold text-teal-800 mb-1">Status no Processo Seletivo</label><select name="status" defaultValue={selectedItem.status} className="w-full px-3 py-2 border border-teal-300 rounded-md text-sm bg-white font-bold text-teal-900"><option value="CADASTRO DE RESERVA">MANTIDO NO CADASTRO DE RESERVA</option><option value="CONVOCADO">CANDIDATO CONVOCADO (APROVADO)</option><option value="REJEITADO">CANDIDATO REJEITADO (INAPTO)</option></select></div>
+              )}
             </form>
+            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3 shrink-0"><button type="button" onClick={closeModal} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">Cancelar</button><button type="submit" form="formCandidato" disabled={loading} className="px-6 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-bold hover:bg-teal-700 transition-colors shadow-md">{loading ? "Processando..." : (selectedItem ? "Salvar Alterações" : "Registar no Banco")}</button></div>
           </div>
         </div>
       )}
 
-      {/* MODAL GLOBAL: TRATAR PONTO */}
-      {isModalOpen && modalType === "TRATAR_PONTO" && (
+      {/* MODAL: MANUTENÇÃO DE SERVIDOR */}
+      {isModalOpen && modalType === "MANUTENCAO_SERVIDOR" && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-[#0f2a4a] text-lg">{selectedItem ? "Editar Ficha do Servidor" : "Cadastrar Novo Servidor"}</h3>
+              <button onClick={closeModal} className="text-gray-400 hover:text-red-500 font-bold text-2xl transition-colors">&times;</button>
+            </div>
+            <form id="formServidor" onSubmit={handleServidorSubmit} className="flex-1 overflow-y-auto p-6 space-y-8 bg-gray-50/50">
+              {message && <div className={`p-4 rounded-lg text-sm font-bold border flex items-start gap-3 shadow-sm ${message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-green-50 text-green-800 border-green-200'}`}><span>{message.text}</span></div>}
+              {selectedItem && <input type="hidden" name="id" value={selectedItem.id} />}
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                {/* COLUNA ESQUERDA */}
+                <div className="space-y-8">
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                    <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b pb-2">1. Identificação Pessoal</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-700 mb-1">Nome Civil Completo *</label><input type="text" name="nome" defaultValue={selectedItem?.nome} required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50" /></div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Nome Social</label><input type="text" name="nomeSocial" defaultValue={selectedItem?.nomeSocial} className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50" /></div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Data de Nascimento</label><input type="date" name="dataNascimento" defaultValue={selectedItem?.dataNascimento} className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50" /></div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                    <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b pb-2">2. Perfil Sociodemográfico</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Grupo Étnico</label><select name="grupoEtnico" defaultValue={selectedItem?.grupoEtnico} className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50"><option value="">Selecione...</option><option value="Branca">Branca</option><option value="Preta">Preta</option><option value="Parda">Parda</option><option value="Amarela">Amarela</option><option value="Indígena">Indígena</option><option value="Não Informado">Não Informado</option></select></div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Estado Civil</label><select name="estadoCivil" defaultValue={selectedItem?.estadoCivil} className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50"><option value="">Selecione...</option><option value="Solteiro(a)">Solteiro(a)</option><option value="Casado(a)">Casado(a)</option><option value="Divorciado(a)">Divorciado(a)</option><option value="Viúvo(a)">Viúvo(a)</option><option value="União Estável">União Estável</option></select></div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                    <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b pb-2">3. Documentação e Endereço</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-bold text-gray-700 mb-1">Busca CEP</label>
+                        <div className="relative">
+                          <input type="text" name="cep" onChange={handleMaskCEP} onBlur={(e) => buscarCEP(e.target.value)} placeholder="00000-000" maxLength={9} className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" />
+                          {loadingCep && <span className="absolute right-2 top-2.5 text-[10px] text-blue-600 font-bold animate-pulse">Buscando...</span>}
+                        </div>
+                      </div>
+                      <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-700 mb-1">Endereço Completo</label><input ref={enderecoRef} type="text" name="endereco" defaultValue={selectedItem?.endereco} placeholder="Rua, Número, Bairro, Cidade - UF" className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50" /></div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">CPF *</label><input type="text" name="cpf" defaultValue={formatCPF_RG_OnLoad(selectedItem?.cpf)} onChange={handleMaskCPF_RG} placeholder="000.000.000-00" maxLength={14} required className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" /></div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">RG / Identidade</label><input type="text" name="rg" defaultValue={formatCPF_RG_OnLoad(selectedItem?.rg)} onChange={handleMaskCPF_RG} placeholder="000.000.000-00" maxLength={14} className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" /></div>
+                      <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-700 mb-1">Telefone / WhatsApp *</label><input type="tel" name="telefone" defaultValue={formatTelefone_OnLoad(selectedItem?.telefone)} onChange={handleMaskTelefone} placeholder="(00) 00000-0000" maxLength={15} required className="w-full px-3 py-2 border rounded-md text-sm font-mono bg-gray-50" /></div>
+                    </div>
+                  </div>
+                </div>
+                {/* COLUNA DIREITA */}
+                <div className="space-y-8">
+                  <div className="bg-[#0f2a4a]/5 p-5 rounded-xl border border-[#0f2a4a]/20 shadow-sm space-y-4">
+                    <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b border-[#0f2a4a]/20 pb-2">4. Informações Contratuais (Vínculo)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2"><label className="block text-xs font-bold text-[#0f2a4a] mb-1">Natureza do Vínculo</label><select name="vinculo" defaultValue={selectedItem?.vinculo || ""} className="w-full px-3 py-2 border border-[#0f2a4a]/30 rounded-md text-sm bg-white"><option value="">Selecione...</option><option value="Efetivo / Concursado">Efetivo / Concursado</option><option value="Contratado (Processo Seletivo)">Contratado (Processo Seletivo)</option><option value="Cargo Comissionado">Cargo Comissionado</option><option value="Estagiário">Estagiário</option></select></div>
+                      <div><label className="block text-xs font-bold text-[#0f2a4a] mb-1">Data de Admissão</label><input type="date" name="dataAdmissao" defaultValue={selectedItem?.dataAdmissao} onChange={(e) => setTempoServicoLive(calcularTempoServico(e.target.value))} className="w-full px-3 py-2 border border-[#0f2a4a]/30 rounded-md text-sm bg-white" /><div className="mt-1.5 text-xs text-gray-500 font-bold bg-white px-2 py-1 rounded border border-gray-200">Tempo: <span className="text-[#0f2a4a]">{selectedItem?.dataAdmissao && tempoServicoLive === "Preencha a data..." ? calcularTempoServico(selectedItem.dataAdmissao) : tempoServicoLive}</span></div></div>
+                      <div className="p-3 bg-red-50 rounded-lg border border-red-200 space-y-3"><div><label className="block text-xs font-bold text-red-800 mb-1">Data de Desligamento</label><input type="date" name="dataDesligamento" defaultValue={selectedItem?.dataDesligamento} className="w-full px-3 py-1.5 border-red-300 rounded-md text-sm bg-white" /></div><div><label className="block text-xs font-bold text-red-800 mb-1">Motivo / Processo de Saída</label><input type="text" name="motivoDesligamento" defaultValue={selectedItem?.motivoDesligamento} placeholder="Ex: Exoneração a pedido" className="w-full px-3 py-1.5 border-red-300 rounded-md text-sm bg-white" /></div></div>
+                    </div>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
+                    <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b border-gray-200 pb-2">5. Cargo e Lotação</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-700 mb-1">Cargo Atual *</label><input type="text" name="cargo" defaultValue={selectedItem?.cargo} required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50" /></div>
+                      <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-700 mb-1">Lotação Atual (Unidade) *</label><select name="centerId" defaultValue={selectedItem?.centerId || ""} required className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50"><option value="">Selecione a Unidade...</option>{unidades.map((u:any) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Escala Padrão *</label><select name="escala" defaultValue={selectedItem?.escala || "5x2 - Administrativo"} className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50"><option value="5x2 - Administrativo">5x2 - Administrativo (8h)</option><option value="12x36 - Plantonista">12x36 - Plantonista</option></select></div>
+                      {selectedItem && (<div><label className="block text-xs font-bold text-gray-700 mb-1">Status na Plataforma *</label><select name="status" defaultValue={selectedItem.status} className="w-full px-3 py-2 border rounded-md text-sm bg-gray-50 text-red-600 font-bold"><option value="ATIVO">SISTEMA LIBERADO (ATIVO)</option><option value="INATIVO">SISTEMA BLOQUEADO (INATIVO)</option></select></div>)}
+                    </div>
+                  </div>
+                  <div className="bg-amber-50 p-5 rounded-xl border border-amber-200 shadow-sm">
+                    <label className="block text-xs font-black text-amber-900 mb-1 uppercase tracking-wider">Justificativa da Ação (Auditoria) *</label><textarea name="observacao" required rows={2} placeholder="Ex: Cadastro inicial..." className="w-full px-3 py-2 border-amber-300 rounded-md text-sm bg-white focus:ring-amber-500"></textarea>
+                  </div>
+                </div>
+              </div>
+            </form>
+            <div className="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3 shrink-0"><button type="button" onClick={closeModal} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-100 transition-colors">Cancelar</button><button type="submit" form="formServidor" disabled={loading} className="px-6 py-2.5 bg-[#0f2a4a] text-white rounded-lg text-sm font-bold hover:bg-blue-900 transition-colors shadow-md">{loading ? "Processando..." : (selectedItem ? "Salvar Alterações" : "Efetivar Matrícula")}</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: FICHA FUNCIONAL / FÉRIAS */}
+      {isModalOpen && modalType === "FICHA_FUNCIONAL" && selectedItem && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center shrink-0">
+              <div><h3 className="font-black text-[#0f2a4a] text-lg">Ficha Funcional Eletrónica</h3><p className="text-xs text-gray-500 font-bold uppercase tracking-widest">{selectedItem.nome} - {selectedItem.cargo}</p></div>
+              <button onClick={closeModal} className="text-gray-400 hover:text-red-500 font-bold text-2xl transition-colors">&times;</button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6 bg-gray-50/50">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="space-y-6">
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="font-black text-gray-800 text-sm uppercase tracking-wider mb-4 border-b pb-2">Programar Férias ou Licença</h4>
+                    <form onSubmit={handleEventoAusenciaSubmit} className="space-y-3">
+                      <input type="hidden" name="servidorId" value={selectedItem.id} />
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Tipo de Evento</label><select name="tipo" required className="w-full px-3 py-2 border rounded-md text-sm"><option value="">Selecione...</option><option value="FÉRIAS">Férias Regulamentares</option><option value="LICENÇA MATERNIDADE/PATERNIDADE">Licença Maternidade/Paternidade</option><option value="LICENÇA SAÚDE">Licença Saúde (Superior 15 dias)</option><option value="LICENÇA PRÊMIO">Licença Prêmio</option><option value="AFASTAMENTO">Afastamento Diversos</option></select></div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div><label className="block text-xs font-bold text-gray-700 mb-1">Data Início</label><input type="date" name="dataInicio" required className="w-full px-3 py-2 border rounded-md text-sm" /></div>
+                        <div><label className="block text-xs font-bold text-gray-700 mb-1">Data Retorno</label><input type="date" name="dataFim" required className="w-full px-3 py-2 border rounded-md text-sm" /></div>
+                      </div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Portaria / Observação</label><input type="text" name="observacao" placeholder="Ex: Portaria nº 45/2024" className="w-full px-3 py-2 border rounded-md text-sm" /></div>
+                      <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg shadow-sm hover:bg-blue-700 mt-2">Lançar no Sistema</button>
+                    </form>
+                  </div>
+                  <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                    <h4 className="font-black text-gray-800 text-sm uppercase tracking-wider mb-4 border-b pb-2">Histórico de Ausências</h4>
+                    <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                      {eventosCadastrados.filter(e => e.servidorId === selectedItem.id).length === 0 ? (
+                        <p className="text-xs text-gray-500 italic text-center py-4">Nenhum evento registrado.</p>
+                      ) : (
+                        eventosCadastrados.filter(e => e.servidorId === selectedItem.id).sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).map(evento => {
+                          const dtInicio = new Date(evento.dataInicio).toLocaleDateString('pt-BR');
+                          const dtFim = new Date(evento.dataFim).toLocaleDateString('pt-BR');
+                          return (
+                            <div key={evento.id} className="border border-gray-200 rounded-lg p-3 bg-gray-50 border-l-4 border-l-blue-500">
+                              <div className="flex justify-between items-center mb-1"><span className="font-black text-[10px] uppercase text-blue-700">{evento.tipo}</span><span className="text-[10px] font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded">{evento.status}</span></div>
+                              <p className="text-xs font-bold text-gray-800">{dtInicio} a {dtFim}</p>
+                              {evento.observacao && <p className="text-xs text-gray-500 mt-1 font-medium">{evento.observacao}</p>}
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                  <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider mb-4 border-b pb-2">Linha do Tempo Funcional</h4>
+                  <div className="relative border-l-2 border-gray-200 ml-3 space-y-6 max-h-[500px] overflow-y-auto py-2">
+                    {historicoFuncional.length === 0 ? <p className="text-xs text-gray-500 italic ml-4">Sem registos no histórico.</p> : (
+                      historicoFuncional.map(log => {
+                        const dataLog = new Date(log.createdAt).toLocaleString('pt-BR');
+                        const isAdmissao = log.acao === "ADMISSAO";
+                        const isMudanca = log.acao === "MUDANCA_CARGO_LOTACAO";
+                        return (
+                          <div key={log.id} className="relative pl-6">
+                            <div className={`absolute -left-2 top-0.5 w-4 h-4 rounded-full border-2 border-white ${isAdmissao ? 'bg-green-500' : isMudanca ? 'bg-purple-500' : 'bg-blue-500'}`}></div>
+                            <div className="bg-gray-50 border border-gray-100 p-3 rounded-lg shadow-sm">
+                              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">{dataLog}</span>
+                              <h5 className={`text-xs font-black uppercase ${isAdmissao ? 'text-green-700' : isMudanca ? 'text-purple-700' : 'text-[#0f2a4a]'}`}>{log.acao.replace(/_/g, ' ')}</h5>
+                              <p className="text-xs text-gray-600 mt-1 leading-relaxed">{log.observacao}</p>
+                            </div>
+                          </div>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: TRATAR PONTO */}
+      {isModalOpen && modalType === "TRATAR_PONTO" && selectedItem && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
             <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center"><h3 className="font-bold text-[#0f2a4a]">Ajustar Marcação</h3><button onClick={closeModal} className="text-gray-400 font-bold text-xl">&times;</button></div>
@@ -451,19 +836,14 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         </div>
       )}
 
-      {/* MODAL GLOBAL: VISUALIZADOR DE ATESTADO */}
+      {/* MODAL: VISUALIZADOR DE ATESTADO */}
       {isModalOpen && modalType === "VER_ATESTADO" && selectedItem && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[95vh]">
-            
             <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-              <div>
-                <h3 className="font-black text-[#0f2a4a] text-lg">Análise de Documento Médico</h3>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-0.5">Motivo Relatado: {selectedItem.motivo}</p>
-              </div>
+              <div><h3 className="font-black text-[#0f2a4a] text-lg">Análise de Documento Médico</h3><p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-0.5">Motivo Relatado: {selectedItem.motivo}</p></div>
               <button onClick={closeModal} className="text-gray-500 bg-gray-200 hover:bg-gray-300 w-8 h-8 rounded-full font-bold flex justify-center items-center transition-colors hover:rotate-90 duration-300">&times;</button>
             </div>
-            
             <div className="p-6 overflow-auto bg-gray-100 flex-1 flex justify-center items-center min-h-[40vh]">
               {selectedItem.anexo.startsWith("data:image") ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -472,26 +852,14 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                 <iframe src={selectedItem.anexo} className="w-full h-[60vh] rounded-lg shadow-md border border-gray-300 bg-white" title="Documento PDF" />
               )}
             </div>
-
             <div className="p-6 bg-white border-t border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-              <div className="text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 hidden sm:block">
-                <span className="text-gray-500 font-medium">Situação da Análise:</span> <span className={`font-black uppercase tracking-wider ml-1 ${selectedItem.status === 'APROVADO' ? 'text-green-600' : selectedItem.status === 'REJEITADO' ? 'text-red-600' : 'text-amber-600'}`}>{selectedItem.status}</span>
-              </div>
-              
+              <div className="text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 hidden sm:block"><span className="text-gray-500 font-medium">Situação da Análise:</span> <span className={`font-black uppercase tracking-wider ml-1 ${selectedItem.status === 'APROVADO' ? 'text-green-600' : selectedItem.status === 'REJEITADO' ? 'text-red-600' : 'text-amber-600'}`}>{selectedItem.status}</span></div>
               <form onSubmit={handleAvaliarAtestado} className="flex w-full sm:w-auto gap-3">
                 <input type="hidden" name="id" value={selectedItem.id} />
-                
-                <button type="submit" name="status" value="REJEITADO" className="flex-1 sm:flex-none bg-white hover:bg-red-50 border-2 border-red-200 text-red-600 font-bold py-3 px-6 rounded-xl transition-colors shadow-sm focus:ring-4 focus:ring-red-100">
-                  Rejeitar
-                </button>
-                
-                <button type="submit" name="status" value="APROVADO" className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white font-black py-3 px-8 rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 focus:ring-4 focus:ring-green-200">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>
-                  Aprovar Atestado
-                </button>
+                <button type="submit" name="status" value="REJEITADO" className="flex-1 sm:flex-none bg-white hover:bg-red-50 border-2 border-red-200 text-red-600 font-bold py-3 px-6 rounded-xl transition-colors shadow-sm focus:ring-4 focus:ring-red-100">Rejeitar</button>
+                <button type="submit" name="status" value="APROVADO" className="flex-1 sm:flex-none bg-green-600 hover:bg-green-700 text-white font-black py-3 px-8 rounded-xl shadow-md transition-transform active:scale-95 flex items-center justify-center gap-2 focus:ring-4 focus:ring-green-200"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"></path></svg>Aprovar Atestado</button>
               </form>
             </div>
-
           </div>
         </div>
       )}

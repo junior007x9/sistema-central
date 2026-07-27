@@ -1,9 +1,9 @@
 "use server";
 
 import { db } from "../../../db";
-import { servidores, pontos, auditLogs, escalasPlantao, solicitacoesAbono, centers } from "../../../db/schema";
-import { eq } from "drizzle-orm";
-import bcrypt from "bcryptjs"; // <-- NOVO: Importação da biblioteca de criptografia
+import { servidores, pontos, auditLogs, escalasPlantao, solicitacoesAbono, centers, eventosAusencia, candidatos } from "../../../db/schema";
+import { eq, desc, and, like } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 
 async function registrarLog(entidade: string, acao: string, detalhe: string, observacao: string) {
   await db.insert(auditLogs).values({
@@ -11,48 +11,205 @@ async function registrarLog(entidade: string, acao: string, detalhe: string, obs
   });
 }
 
-export async function salvarServidorAction(formData: FormData) {
+// ==========================================
+// MÓDULO: RECRUTAMENTO (BANCO DE TALENTOS)
+// ==========================================
+export async function salvarCandidatoAction(formData: FormData) {
   const id = formData.get("id") as string;
   const nome = formData.get("nome") as string;
-  const cpf = formData.get("cpf") as string;
-  const pis = formData.get("pis") as string;
-  const cargo = formData.get("cargo") as string;
-  const escala = formData.get("escala") as string;
-  const centerId = formData.get("centerId") as string;
-  const status = formData.get("status") as "ATIVO" | "INATIVO";
-  const observacao = formData.get("observacao") as string;
+  const email = formData.get("email") as string;
+  const qualificacao = formData.get("qualificacao") as string;
+  const status = formData.get("status") as any;
 
-  if (!nome || !cpf || !pis || !cargo || !centerId || !observacao) return { error: "Preencha tudo." };
+  const rawCpf = formData.get("cpf") as string;
+  const cleanCpf = rawCpf ? rawCpf.replace(/\D/g, "") : "";
+  const rawTelefone = formData.get("telefone") as string;
+  const cleanTelefone = rawTelefone ? rawTelefone.replace(/\D/g, "") : "";
+
+  if (!nome || !cleanCpf || !email || !cleanTelefone || !qualificacao) {
+    return { error: "Preencha todos os campos obrigatórios do candidato." };
+  }
+
+  if (cleanCpf) {
+    const cpfExistente = await db.select().from(candidatos).where(eq(candidatos.cpf, cleanCpf));
+    if (cpfExistente.length > 0 && cpfExistente[0].id !== id) {
+      return { error: `⚠️ Bloqueado: O CPF ${rawCpf} já está registado no Banco de Talentos em nome de ${cpfExistente[0].nome}.` };
+    }
+  }
+
+  const dadosCandidato = {
+    nome,
+    cpf: cleanCpf,
+    email,
+    telefone: cleanTelefone,
+    qualificacao,
+    status: status || "CADASTRO DE RESERVA"
+  };
 
   if (id) {
-    // Na edição, mantemos a senha atual intocável
-    await db.update(servidores).set({ nome, cpf, pis, cargo, escala, centerId, status }).where(eq(servidores.id, id));
-    await registrarLog("SERVIDOR", "EDITAR", `${nome}`, observacao);
-    return { success: "Atualizado!" };
+    await db.update(candidatos).set(dadosCandidato).where(eq(candidatos.id, id));
+    await registrarLog("RECRUTAMENTO", "EDITAR", `${nome}`, `Status alterado para: ${dadosCandidato.status}`);
+    return { success: "Ficha do candidato atualizada com sucesso!" };
   } else {
-    try {
-      // NOVO: Aplicando criptografia militar (Bcrypt) na senha padrão ao cadastrar
-      const custoSalt = 10;
-      const senhaCriptografada = await bcrypt.hash("fase123", custoSalt);
-
-      await db.insert(servidores).values({ 
-        id: crypto.randomUUID(), 
-        nome, 
-        cpf, 
-        pis, 
-        cargo, 
-        escala, 
-        centerId, 
-        senha: senhaCriptografada, // Salvando o hash gerado no banco de dados
-        status: "ATIVO", 
-        createdAt: new Date() 
-      });
-      await registrarLog("SERVIDOR", "CRIAR", `${nome}`, observacao);
-      return { success: "Cadastrado!" };
-    } catch { return { error: "CPF já cadastrado." }; }
+    await db.insert(candidatos).values({
+      id: crypto.randomUUID(),
+      ...dadosCandidato,
+      createdAt: new Date()
+    });
+    await registrarLog("RECRUTAMENTO", "CADASTRAR", `${nome}`, `Adicionado ao Cadastro de Reserva. Qualificação base: ${qualificacao.substring(0, 50)}`);
+    return { success: "Candidato inserido no Banco de Talentos!" };
   }
 }
 
+export async function listarCandidatosAction() {
+  return await db.select().from(candidatos);
+}
+
+// ==========================================
+// MÓDULO: SERVIDORES (MANTIDO INTACTO)
+// ==========================================
+export async function salvarServidorAction(formData: FormData) {
+  const id = formData.get("id") as string;
+  const centerId = formData.get("centerId") as string;
+  const status = formData.get("status") as "ATIVO" | "INATIVO";
+  const observacao = formData.get("observacao") as string;
+  const cargo = formData.get("cargo") as string;
+  const nome = formData.get("nome") as string;
+
+  const rawCpf = formData.get("cpf") as string;
+  const cleanCpf = rawCpf ? rawCpf.replace(/\D/g, "") : "";
+  const rawRg = formData.get("rg") as string;
+  const cleanRg = rawRg ? rawRg.replace(/\D/g, "") : "";
+  const rawTelefone = formData.get("telefone") as string;
+  const cleanTelefone = rawTelefone ? rawTelefone.replace(/\D/g, "") : "";
+  const rawPis = formData.get("pis") as string;
+  const cleanPis = rawPis ? rawPis.replace(/\D/g, "") : "";
+  const email = formData.get("email") as string;
+
+  if (cleanCpf) {
+    const cpfExistente = await db.select().from(servidores).where(eq(servidores.cpf, cleanCpf));
+    if (cpfExistente.length > 0 && cpfExistente[0].id !== id) {
+      return { error: `⚠️ Bloqueado: O CPF ${rawCpf} já está cadastrado no sistema em nome de ${cpfExistente[0].nome}.` };
+    }
+  }
+
+  if (email) {
+    const emailExistente = await db.select().from(servidores).where(eq(servidores.email, email));
+    if (emailExistente.length > 0 && emailExistente[0].id !== id) {
+      return { error: `⚠️ Bloqueado: O E-mail ${email} já está a ser utilizado por outro servidor.` };
+    }
+  }
+
+  const dadosServidor = {
+    nome,
+    nomeSocial: formData.get("nomeSocial") as string,
+    dataNascimento: formData.get("dataNascimento") as string,
+    tipoSanguineo: formData.get("tipoSanguineo") as string,
+    grupoEtnico: formData.get("grupoEtnico") as string,
+    estadoCivil: formData.get("estadoCivil") as string,
+    genero: formData.get("genero") as string,
+    orientacaoSexual: formData.get("orientacaoSexual") as string,
+    endereco: formData.get("endereco") as string,
+    email,
+    telefone: cleanTelefone,
+    contatoEmergencia: formData.get("contatoEmergencia") as string,
+    cpf: cleanCpf,
+    rg: cleanRg,
+    tituloEleitoral: formData.get("tituloEleitoral") as string,
+    pis: cleanPis,
+    dependentes: formData.get("dependentes") as string,
+    banco: formData.get("banco") as string,
+    agencia: formData.get("agencia") as string,
+    conta: formData.get("conta") as string,
+    cargo,
+    escala: formData.get("escala") as string,
+    centerId,
+    status,
+    vinculo: formData.get("vinculo") as string,
+    dataAdmissao: formData.get("dataAdmissao") as string,
+    dataDesligamento: formData.get("dataDesligamento") as string,
+    motivoDesligamento: formData.get("motivoDesligamento") as string,
+    processoDesligamento: formData.get("processoDesligamento") as string,
+  };
+
+  if (!dadosServidor.nome || !dadosServidor.cpf || !dadosServidor.cargo || !centerId || !observacao) {
+    return { error: "Preencha os campos obrigatórios (*)." };
+  }
+
+  if (id) {
+    const oldServer = await db.select().from(servidores).where(eq(servidores.id, id));
+    if (oldServer.length > 0) {
+      const isCargoChanged = oldServer[0].cargo !== cargo;
+      const isCenterChanged = oldServer[0].centerId !== centerId;
+      
+      if (isCargoChanged || isCenterChanged) {
+        const unidades = await db.select().from(centers);
+        const oldCenterName = unidades.find(u => u.id === oldServer[0].centerId)?.name || "Desconhecida";
+        const newCenterName = unidades.find(u => u.id === centerId)?.name || "Desconhecida";
+        const mudanca = `Alteração Registrada: ${isCargoChanged ? `[Cargo: de ${oldServer[0].cargo} para ${cargo}] ` : ''}${isCenterChanged ? `[Lotação: de ${oldCenterName} para ${newCenterName}]` : ''}`;
+        await registrarLog("FICHA_FUNCIONAL", "MUDANCA_CARGO_LOTACAO", `ID_SERVIDOR:${id}`, mudanca);
+      }
+    }
+
+    await db.update(servidores).set(dadosServidor).where(eq(servidores.id, id));
+    await registrarLog("SERVIDOR", "EDITAR", `${dadosServidor.nome}`, observacao);
+    return { success: "Ficha do servidor atualizada!" };
+  } else {
+    try {
+      const custoSalt = 10;
+      const senhaCriptografada = await bcrypt.hash("fase123", custoSalt);
+      const novoId = crypto.randomUUID();
+      await db.insert(servidores).values({ 
+        id: novoId, 
+        ...dadosServidor,
+        senha: senhaCriptografada,
+        createdAt: new Date() 
+      });
+      
+      const unidades = await db.select().from(centers);
+      const centerName = unidades.find(u => u.id === centerId)?.name || "Desconhecida";
+      await registrarLog("FICHA_FUNCIONAL", "ADMISSAO", `ID_SERVIDOR:${novoId}`, `Admitido no cargo de ${cargo} com lotação em ${centerName}. Vínculo: ${dadosServidor.vinculo}`);
+      await registrarLog("SERVIDOR", "CRIAR", `${dadosServidor.nome}`, observacao);
+      
+      return { success: "Servidor cadastrado com sucesso!" };
+    } catch { 
+      return { error: "Erro crítico ao cadastrar servidor no banco de dados." }; 
+    }
+  }
+}
+
+// ------------------------------------------------------------------
+export async function salvarEventoAusenciaAction(formData: FormData) {
+  const servidorId = formData.get("servidorId") as string;
+  const tipo = formData.get("tipo") as any;
+  const dataInicio = formData.get("dataInicio") as string;
+  const dataFim = formData.get("dataFim") as string;
+  const observacao = formData.get("observacao") as string;
+
+  if (!servidorId || !tipo || !dataInicio || !dataFim) return { error: "Preencha todos os campos obrigatórios." };
+  
+  await db.insert(eventosAusencia).values({
+    id: crypto.randomUUID(),
+    servidorId,
+    tipo,
+    dataInicio,
+    dataFim,
+    observacao,
+    status: "APROVADO",
+    createdAt: new Date()
+  });
+
+  await registrarLog("FICHA_FUNCIONAL", "REGISTRO_AUSENCIA", `ID_SERVIDOR:${servidorId}`, `Lançamento de ${tipo}: de ${dataInicio} a ${dataFim}. Obs: ${observacao}`);
+  return { success: "Evento de ausência agendado com sucesso!" };
+}
+
+export async function listarEventosAusenciaAction() { return await db.select().from(eventosAusencia); }
+
+export async function listarHistoricoFuncionalAction(servidorId: string) {
+  return await db.select().from(auditLogs).where(like(auditLogs.detalhe, `%ID_SERVIDOR:${servidorId}%`)).orderBy(desc(auditLogs.createdAt));
+}
+
+// ------------------------------------------------------------------
 export async function tratarPontoAction(formData: FormData) {
   const pontoId = formData.get("pontoId") as string;
   const statusPonto = formData.get("statusPonto") as any;
@@ -78,7 +235,7 @@ export async function gerarArquivoAFDAction(centerId?: string) {
     const dataF = new Date(p.dataHora).toLocaleDateString('pt-BR').replace(/\//g, '');
     const horaF = new Date(p.dataHora).toLocaleTimeString('pt-BR').replace(/:/g, '');
     const nsrS = String(nsr).padStart(9, '0');
-    const pisS = String(servidor.pis).padStart(11, '0');
+    const pisS = String(servidor.pis || "00000000000").padStart(11, '0');
     const evento = p.tipo === "ENTRADA" ? "1" : "2";
     conteudoAFD += `${nsrS}3${dataF}${horaF}${pisS}${evento}0000000000000\r\n`;
     nsr++;
@@ -97,28 +254,19 @@ export async function salvarPlantaoAction(formData: FormData) {
   return { success: "Turno escalado com sucesso!" };
 }
 
-export async function listarEscalasAction() {
-  return await db.select().from(escalasPlantao);
-}
-
-export async function listarAtestadosAction() {
-  return await db.select().from(solicitacoesAbono);
-}
+export async function listarEscalasAction() { return await db.select().from(escalasPlantao); }
+export async function listarAtestadosAction() { return await db.select().from(solicitacoesAbono); }
 
 export async function avaliarAtestadoAction(formData: FormData) {
   const id = formData.get("id") as string;
   const status = formData.get("status") as "APROVADO" | "REJEITADO";
 
   if (!id || !status) return { error: "Dados inválidos." };
-
   await db.update(solicitacoesAbono).set({ status }).where(eq(solicitacoesAbono.id, id));
   await registrarLog("ATESTADOS", status, `ID: ${id}`, `RH marcou atestado como ${status}.`);
   return { success: `Atestado ${status.toLowerCase()} com sucesso!` };
 }
 
-// ==============================================================
-// NOVO: SUPER MOTOR DE CÁLCULO DE FOLHA DE PAGAMENTO (EXCEL/CSV)
-// ==============================================================
 export async function gerarFolhaPagamentoAction(centerIdFiltro?: string) {
   const listaServidores = await db.select().from(servidores);
   const listaPontos = await db.select().from(pontos);
@@ -129,22 +277,13 @@ export async function gerarFolhaPagamentoAction(centerIdFiltro?: string) {
   let csv = "NOME;CPF;CARGO;LOTAÇÃO;ESCALA REGRADA;PLANTÕES AGENDADOS;DIAS TRABALHADOS (PONTO);ATESTADOS APROVADOS;STATUS DA FOLHA\n";
 
   listaServidores.forEach(serv => {
-    // Filtro por unidade
     if (centerIdFiltro && serv.centerId !== centerIdFiltro) return;
-
     const unidade = listaUnidades.find(u => u.id === serv.centerId)?.name || "Desconhecida";
-    
-    // Matemática da Folha
     const plantoesAgendados = listaEscalas.filter(e => e.servidorId === serv.id).length;
-    
-    // Pega as presenças reais (dias únicos em que o relógio bateu NORMAL)
     const pontosServidor = listaPontos.filter(p => p.servidorId === serv.id && p.statusPonto === 'NORMAL');
     const diasPresentes = new Set(pontosServidor.map(p => new Date(p.dataHora).toLocaleDateString('pt-BR'))).size;
-    
-    // Atestados válidos que justificam faltas
     const atestadosAprovados = atestados.filter(a => a.servidorId === serv.id && a.status === 'APROVADO').length;
 
-    // Inteligência de Alertas
     let statusFolha = "OK - FECHAMENTO REDONDO";
     if (plantoesAgendados > 0 && plantoesAgendados > (diasPresentes + atestadosAprovados)) {
       statusFolha = "⚠️ FALTAS INJUSTIFICADAS / DESCONTAR EM FOLHA";
@@ -153,7 +292,6 @@ export async function gerarFolhaPagamentoAction(centerIdFiltro?: string) {
     } else if (plantoesAgendados === 0 && diasPresentes === 0) {
       statusFolha = "SEM DADOS NO MÊS";
     }
-
     csv += `${serv.nome};${serv.cpf};${serv.cargo};${unidade};${serv.escala};${plantoesAgendados};${diasPresentes};${atestadosAprovados};${statusFolha}\n`;
   });
 

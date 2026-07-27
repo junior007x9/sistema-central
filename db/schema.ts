@@ -36,21 +36,17 @@ export const atendimentos = sqliteTable('atendimentos', {
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
 
-// ==========================================
-// NOVO MÓDULO: PIA (Prontuário Evolutivo)
-// ==========================================
 export const evolucoesPia = sqliteTable('evolucoes_pia', {
   id: text('id').primaryKey(),
   atendimentoId: text('atendimento_id').notNull().references(() => atendimentos.id),
-  autor: text('autor').notNull(), // Nome do profissional
+  autor: text('autor').notNull(), 
   tipo: text('tipo', { enum: ['PSICOLOGIA', 'SERVIÇO SOCIAL', 'SAÚDE', 'PEDAGOGIA', 'JURÍDICO', 'SEGURANÇA'] }).notNull(),
   relato: text('relato').notNull(),
   dataRegistro: integer('data_registro', { mode: 'timestamp' }).notNull(),
 });
 
-
 // ==========================================
-// MÓDULO: RH, PONTO REP-P E ESCALAS
+// MÓDULO: RH E SERVIDORES
 // ==========================================
 
 export const servidores = sqliteTable('servidores', {
@@ -64,6 +60,30 @@ export const servidores = sqliteTable('servidores', {
   pis: text('pis').notNull().default('00000000000'),
   status: text('status', { enum: ['ATIVO', 'INATIVO'] }).notNull().default('ATIVO'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+
+  nomeSocial: text('nome_social'),
+  dataNascimento: text('data_nascimento'),
+  tipoSanguineo: text('tipo_sanguineo'),
+  grupoEtnico: text('grupo_etnico'),
+  estadoCivil: text('estado_civil'),
+  genero: text('genero'),
+  orientacaoSexual: text('orientacao_sexual'),
+  endereco: text('endereco'),
+  email: text('email'),
+  telefone: text('telefone'),
+  contatoEmergencia: text('contato_emergencia'),
+  rg: text('rg'),
+  tituloEleitoral: text('titulo_eleitoral'),
+  dependentes: text('dependentes'),
+  banco: text('banco'),
+  agencia: text('agencia'),
+  conta: text('conta'),
+
+  vinculo: text('vinculo'),
+  dataAdmissao: text('data_admissao'),
+  dataDesligamento: text('data_desligamento'),
+  motivoDesligamento: text('motivo_desligamento'),
+  processoDesligamento: text('processo_desligamento'),
 });
 
 export const pontos = sqliteTable('pontos', {
@@ -81,12 +101,11 @@ export const pontos = sqliteTable('pontos', {
   assinaturaDigitalComprovante: text('assinatura_digital_comprovante'),
 });
 
-// NOVO MÓDULO: Escalas de Plantão do RH
 export const escalasPlantao = sqliteTable('escalas_plantao', {
   id: text('id').primaryKey(),
   servidorId: text('servidor_id').notNull().references(() => servidores.id),
   centerId: text('center_id').notNull().references(() => centers.id),
-  dataPlantao: text('data_plantao').notNull(), // Formato YYYY-MM-DD
+  dataPlantao: text('data_plantao').notNull(), 
   turno: text('turno', { enum: ['DIA (07h-19h)', 'NOITE (19h-07h)', 'EXPEDIENTE'] }).notNull(),
 });
 
@@ -98,14 +117,39 @@ export const auditLogs = sqliteTable('audit_logs', {
   observacao: text('observacao').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
-// NOVO MÓDULO: Solicitações de Atestados e Abonos (Portal do Colaborador)
+
 export const solicitacoesAbono = sqliteTable('solicitacoes_abono', {
   id: text('id').primaryKey(),
   servidorId: text('servidor_id').notNull().references(() => servidores.id),
   centerId: text('center_id').notNull().references(() => centers.id),
   dataFalta: text('data_falta').notNull(),
   motivo: text('motivo').notNull(),
-  anexo: text('anexo'), // Guardará a foto/documento em Base64
+  anexo: text('anexo'),
   status: text('status', { enum: ['PENDENTE', 'APROVADO', 'REJEITADO'] }).notNull().default('PENDENTE'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const eventosAusencia = sqliteTable('eventos_ausencia', {
+  id: text('id').primaryKey(),
+  servidorId: text('servidor_id').notNull().references(() => servidores.id),
+  tipo: text('tipo', { enum: ['FÉRIAS', 'LICENÇA MATERNIDADE/PATERNIDADE', 'LICENÇA SAÚDE', 'LICENÇA PRÊMIO', 'AFASTAMENTO'] }).notNull(),
+  dataInicio: text('data_inicio').notNull(),
+  dataFim: text('data_fim').notNull(),
+  observacao: text('observacao'),
+  status: text('status', { enum: ['PROGRAMADO', 'APROVADO', 'CANCELADO'] }).notNull().default('APROVADO'),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
+});
+
+// ==========================================
+// NOVO MÓDULO: RECRUTAMENTO E SELEÇÃO
+// ==========================================
+export const candidatos = sqliteTable('candidatos', {
+  id: text('id').primaryKey(),
+  nome: text('nome').notNull(),
+  cpf: text('cpf').notNull().unique(),
+  email: text('email').notNull(),
+  telefone: text('telefone').notNull(),
+  qualificacao: text('qualificacao').notNull(), // Local para observação do currículo / área de adaptação
+  status: text('status', { enum: ['CADASTRO DE RESERVA', 'CONVOCADO', 'REJEITADO'] }).notNull().default('CADASTRO DE RESERVA'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull(),
 });
