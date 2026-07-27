@@ -8,54 +8,59 @@ import { encrypt } from "../../../lib/session";
 import { cookies } from "next/headers";
 
 export async function autenticarServidorAction(formData: FormData) {
-  const cpfBruto = formData.get("cpf") as string;
+  // Agora o campo chama-se "login" (pode ser e-mail ou cpf)
+  const loginField = formData.get("login") as string;
   const password = formData.get("password") as string;
 
-  // Limpa a máscara (remove pontos e traços) para consultar o banco de dados corretamente
-  const cleanCpf = cpfBruto ? cpfBruto.replace(/\D/g, "") : "";
-
-  if (!cleanCpf || !password) {
+  if (!loginField || !password) {
     return { error: "Preencha todos os campos." };
   }
 
+  // INTELIGÊNCIA: Verifica se o utilizador digitou um e-mail (tem @) ou um CPF
+  const isEmail = loginField.includes("@");
+  const cleanCpf = !isEmail ? loginField.replace(/\D/g, "") : "";
+
   try {
-    // 1. Busca no Banco de Dados
-    const servidorList = await db.select().from(servidores).where(eq(servidores.cpf, cleanCpf));
+    let servidorList;
+    
+    // Procura na base de dados pela coluna correta
+    if (isEmail) {
+      servidorList = await db.select().from(servidores).where(eq(servidores.email, loginField.trim()));
+    } else {
+      servidorList = await db.select().from(servidores).where(eq(servidores.cpf, cleanCpf));
+    }
+
     const servidor = servidorList[0];
 
     // ==========================================
-    // BLINDAGEM 1: Defesa contra Enumeração e Timing Attacks
+    // BLINDAGEM 1: Defesa contra Enumeração
     // ==========================================
     if (!servidor) {
-      // Cálculo de hash falso para confundir robôs de ataque
       await bcrypt.hash(password, 10);
-      return { error: "Credenciais inválidas. Verifique o CPF e a senha." };
+      return { error: "Credenciais inválidas. Verifique o seu CPF/E-mail e a senha." };
     }
 
-    // ==========================================
-    // TRAVA DE RH: Bloqueia acesso de ex-funcionários
-    // ==========================================
     if (servidor.status === "INATIVO") {
       return { error: "Acesso bloqueado. O seu perfil encontra-se inativo. Contacte o RH." };
     }
 
     // ==========================================
-    // BLINDAGEM 2: Comparação Segura (Bcrypt)
+    // BLINDAGEM 2: Comparação Bcrypt
     // ==========================================
     const passwordMatch = await bcrypt.compare(password, servidor.senha);
 
     if (!passwordMatch) {
-      return { error: "Credenciais inválidas. Verifique o CPF e a senha." };
+      return { error: "Credenciais inválidas. Verifique o seu CPF/E-mail e a senha." };
     }
 
     // ==========================================
-    // BLINDAGEM 3: Geração do Cookie de Sessão
+    // BLINDAGEM 3: Geração de Sessão
     // ==========================================
-    const expires = new Date(Date.now() + 10 * 60 * 60 * 1000); // Duração de 10 horas
+    const expires = new Date(Date.now() + 10 * 60 * 60 * 1000); 
     
     const sessionPayload = {
       userId: servidor.id,
-      role: "SERVIDOR", // Diferencia este utilizador de um Diretor/RH
+      role: "SERVIDOR", 
       centerId: servidor.centerId,
       expires
     };
@@ -63,11 +68,8 @@ export async function autenticarServidorAction(formData: FormData) {
     const session = await encrypt(sessionPayload);
     const cookieStore = await cookies();
 
-    // ==========================================
-    // BLINDAGEM 4: Trancamento do Cookie no Navegador
-    // ==========================================
     cookieStore.set("session", session, {
-      httpOnly: true, // Bloqueia roubo de cookies por extensões (XSS)
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       expires: expires,

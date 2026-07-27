@@ -2,21 +2,29 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation"; // <- ADICIONADO PARA RESOLVER O REDIRECIONAMENTO
 import { autenticarServidorAction } from "./actions";
 
 export default function ServidorLoginPage() {
+  const router = useRouter(); // <- INICIADO
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showHelp, setShowHelp] = useState(false); // Modal de Feedback
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
+    
     const formData = new FormData(e.currentTarget);
     const result = await autenticarServidorAction(formData);
+    
     if (result?.error) {
       setError(result.error);
       setLoading(false);
+    } else if (result?.success) {
+      // MAGIA AQUI: O botão sairá de "Autenticando..." e enviará o funcionário para a aba do Servidor!
+      router.push("/servidor"); 
     }
   }
 
@@ -33,13 +41,12 @@ export default function ServidorLoginPage() {
           {error && <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm font-bold border border-red-200">{error}</div>}
           
           <div>
-            <label className="block text-sm font-bold text-gray-700 mb-1">CPF (Sua Matrícula)</label>
-            <input type="text" name="cpf" required placeholder="Apenas números" className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl font-mono focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
+            <label className="block text-sm font-bold text-gray-700 mb-1">CPF ou E-mail Institucional</label>
+            <input type="text" name="login" required placeholder="Ex: 123.456.789-00 ou email@fase.ma" className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
           </div>
 
           <div>
             <label className="block text-sm font-bold text-gray-700 mb-1">Senha de Acesso</label>
-            {/* O name="password" é obrigatório aqui para bater com o motor de segurança */}
             <input type="password" name="password" required placeholder="••••••••" className="w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all" />
           </div>
 
@@ -48,9 +55,24 @@ export default function ServidorLoginPage() {
           </button>
         </form>
         
-        <p className="text-center text-xs text-gray-400 mt-8 font-medium">
-          Dica: Se for o seu primeiro acesso, a senha padrão é <span className="font-bold text-gray-600">fase123</span>
-        </p>
+        {/* BOTÃO DE SUPORTE E FEEDBACK */}
+        <div className="mt-6 border-t border-gray-100 pt-6 text-center">
+          <button onClick={() => setShowHelp(!showHelp)} className="text-sm font-bold text-blue-600 hover:underline">
+            Problemas de acesso? Ajuda aqui.
+          </button>
+          
+          {showHelp && (
+            <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-800 text-left leading-relaxed">
+              <p className="font-bold mb-2">Dicas de Acesso:</p>
+              <ul className="list-disc pl-4 space-y-1">
+                <li>Se for o seu primeiro acesso, a senha padrão é <b>fase123</b>.</li>
+                <li>Pode usar o seu <b>CPF</b> (apenas números) ou o seu <b>E-mail</b> registado no RH.</li>
+                <li>Se esqueceu a senha ou o e-mail não estiver a funcionar, contacte o seu Diretor de Unidade ou o RH Central para pedir o <b>Reset de Acesso</b>.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+
       </div>
     </div>
   );
