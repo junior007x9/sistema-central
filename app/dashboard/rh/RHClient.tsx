@@ -83,12 +83,10 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   const [cargosCadastrados, setCargosCadastrados] = useState<any[]>([]);
   const [tempoServicoLive, setTempoServicoLive] = useState<string>("Preencha a data...");
 
-  // Estados dos Relatórios
   const [tipoRelatorio, setTipoRelatorio] = useState<"QUANTITATIVO" | "CADASTRAL" | "FERIAS" | "ANIVERSARIANTES">("QUANTITATIVO");
   const [mesAniversario, setMesAniversario] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // NOVO MODAL "RESET_ACESSO"
   const [modalType, setModalType] = useState<"MANUTENCAO_SERVIDOR" | "TRATAR_PONTO" | "VER_ATESTADO" | "FICHA_FUNCIONAL" | "MANUTENCAO_CANDIDATO" | "GERENCIAR_CARGOS" | "RESET_ACESSO" | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
@@ -137,7 +135,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     }
   }
 
-  // GESTÃO DE RECUPERAÇÃO DE ACESSO
   async function handleResetAcessoSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -148,7 +145,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
       setMessage({ type: "error", text: result.error });
     } else {
       setMessage({ type: "success", text: result.success as string });
-      // Fecha a janela de recuperação após 2 segundos de sucesso
       setTimeout(() => {
         closeModal();
         router.refresh();
@@ -318,7 +314,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     const sId = e.servidorId;
     const pertenceAUnidade = servs.some((s:any) => s.id === sId);
     if (!pertenceAUnidade) return false;
-    
     const dInicio = new Date(e.dataInicio);
     const dFim = new Date(e.dataFim);
     return dataHojeObj >= dInicio && dataHojeObj <= dFim;
@@ -392,12 +387,10 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
       <div className="p-4 sm:p-6 bg-gray-50/50">
         
         {/* ======================================================================= */}
-        {/* TAB 1: PAINEL GERAL (DASHBOARD RH CORPORATIVO)                          */}
+        {/* TAB 1: PAINEL GERAL                                                     */}
         {/* ======================================================================= */}
         {activeTab === "INDICADORES" && (
           <div className="space-y-6 animate-in slide-in-from-bottom-4 fade-in duration-500">
-            
-            {/* LINHA 1: KPIS (Top Cards) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               <div className="bg-gradient-to-br from-[#0f2a4a] to-[#1a3a6a] text-white p-5 rounded-2xl shadow-md relative overflow-hidden">
                 <div className="absolute right-0 top-0 opacity-10 transform translate-x-4 -translate-y-4">
@@ -431,7 +424,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
               </div>
             </div>
 
-            {/* LINHA 2: GRÁFICOS DEMOGRÁFICOS E CONTRATUAIS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-5"><h3 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider">Mapa de Vínculos Empregatícios</h3></div>
@@ -468,7 +460,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
               </div>
             </div>
 
-            {/* LINHA 3: OPERACIONAL E ESCALAS */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white border border-gray-200 p-6 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex items-center justify-between border-b border-gray-100 pb-3 mb-5"><h3 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider">Auditoria de Ocorrências (Espelho)</h3></div>
@@ -491,7 +482,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         )}
 
         {/* ======================================================================= */}
-        {/* TAB 2: SERVIDORES (COM O NOVO BOTÃO DE ACESSO)                          */}
+        {/* TAB 2: SERVIDORES                                                       */}
         {/* ======================================================================= */}
         {activeTab === "SERVIDORES" && (
           <div className="animate-in fade-in duration-300">
@@ -517,10 +508,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                       <td className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{s.vinculo || 'Não Informado'}</td>
                       <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
                       <td className="px-6 py-4 text-right space-x-3">
-                        
-                        {/* NOVO BOTÃO DE RESETAR ACESSO */}
                         <button onClick={() => { setSelectedItem(s); setModalType("RESET_ACESSO"); setIsModalOpen(true); }} className="text-amber-600 hover:underline font-bold text-xs bg-amber-50 px-2 py-1 rounded">🔑 Acesso</button>
-                        
                         <button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold text-xs bg-blue-50 px-2 py-1 rounded">Editar Info</button>
                         <button onClick={() => openFichaFuncional(s)} className="text-purple-600 hover:underline font-bold text-xs bg-purple-50 px-2 py-1 rounded">Ficha / Férias</button>
                       </td>
@@ -929,7 +917,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         </div>
       )}
 
-      {/* MODAL GLOBAL: MANUTENÇÃO DE SERVIDORES */}
+      {/* MODAL GLOBAL: MANUTENÇÃO DE SERVIDORES (COM O NOVO BLOCO 3) */}
       {isModalOpen && modalType === "MANUTENCAO_SERVIDOR" && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -971,17 +959,20 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                     </div>
                   </div>
 
-                  {/* 3. DOCUMENTAÇÃO */}
+                  {/* 3. DOCUMENTAÇÃO E ACESSO AO PORTAL */}
                   <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                    <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b pb-2">3. Documentação</h4>
+                    <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b pb-2">3. Documentação e Acesso</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div><label className="block text-xs font-bold text-gray-700 mb-1">CPF *</label><input type="text" name="cpf" defaultValue={formatCPF_RG_OnLoad(selectedItem?.cpf)} onChange={handleMaskCPF_RG} placeholder="000.000.000-00" maxLength={14} required className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" /></div>
+                      <div><label className="block text-xs font-bold text-gray-700 mb-1">CPF (Usado no Login) *</label><input type="text" name="cpf" defaultValue={formatCPF_RG_OnLoad(selectedItem?.cpf)} onChange={handleMaskCPF_RG} placeholder="000.000.000-00" maxLength={14} required className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" /></div>
+                      
+                      {/* CAMPO DE E-MAIL ADICIONADO AQUI! */}
+                      <div><label className="block text-xs font-bold text-blue-700 mb-1">E-mail (Usado no Login)</label><input type="email" name="email" defaultValue={selectedItem?.email} placeholder="servidor@fase.ma.gov.br" className="w-full px-3 py-2 border border-blue-200 rounded-md text-sm bg-blue-50 focus:bg-white outline-none focus:ring-2 focus:ring-blue-500" /></div>
+                      
                       <div>
                         <div className="flex justify-between items-end"><label className="block text-xs font-bold text-gray-700 mb-1">RG / Identidade</label><span className="text-[9px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded uppercase mb-1">Padrão CIN</span></div>
                         <input type="text" name="rg" defaultValue={formatCPF_RG_OnLoad(selectedItem?.rg)} onChange={handleMaskCPF_RG} placeholder="000.000.000-00" maxLength={14} className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" />
                       </div>
                       <div><label className="block text-xs font-bold text-gray-700 mb-1">PIS/PASEP</label><input type="text" name="pis" defaultValue={selectedItem?.pis} className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" /></div>
-                      <div><label className="block text-xs font-bold text-gray-700 mb-1">Título Eleitoral</label><input type="text" name="tituloEleitoral" defaultValue={selectedItem?.tituloEleitoral} className="w-full px-3 py-2 border rounded-md font-mono text-sm bg-gray-50" /></div>
                     </div>
                   </div>
                 </div>
@@ -1014,6 +1005,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                     <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b border-gray-200 pb-2">5. Cargo e Lotação</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       
+                      {/* NOVO CAMPO INTELIGENTE DE CARGOS COM DATALIST */}
                       <div className="md:col-span-2 relative">
                         <label className="block text-xs font-bold text-gray-700 mb-1">Cargo Atual *</label>
                         <input type="text" name="cargo" list="lista-cargos" defaultValue={selectedItem?.cargo} required placeholder="Digite ou selecione o cargo..." className="w-full px-3 py-2 border border-blue-300 rounded-md text-sm bg-blue-50 focus:bg-white uppercase outline-none focus:ring-2 focus:ring-blue-500" />
