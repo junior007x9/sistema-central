@@ -10,14 +10,11 @@ import {
   gerarFolhaPagamentoAction, salvarEventoAusenciaAction,
   listarEventosAusenciaAction, listarHistoricoFuncionalAction,
   salvarCandidatoAction, listarCandidatosAction,
-  salvarCargoAction, listarCargosAction
+  salvarCargoAction, listarCargosAction, resetarAcessoServidorAction
 } from "./actions";
 
 type Tab = "INDICADORES" | "SERVIDORES" | "RECRUTAMENTO" | "RELATORIOS" | "ESPELHO" | "ESCALAS" | "ATESTADOS" | "FISCAL";
 
-// ==========================================
-// FUNÇÕES UTILITÁRIAS DE MÁSCARA AUTOMÁTICA
-// ==========================================
 const handleMaskCPF_RG = (e: React.ChangeEvent<HTMLInputElement>) => {
   let v = e.target.value.replace(/\D/g, "");
   if (v.length > 11) v = v.slice(0, 11);
@@ -91,7 +88,8 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   const [mesAniversario, setMesAniversario] = useState<string>(String(new Date().getMonth() + 1).padStart(2, '0'));
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalType, setModalType] = useState<"MANUTENCAO_SERVIDOR" | "TRATAR_PONTO" | "VER_ATESTADO" | "FICHA_FUNCIONAL" | "MANUTENCAO_CANDIDATO" | "GERENCIAR_CARGOS" | null>(null);
+  // NOVO MODAL "RESET_ACESSO"
+  const [modalType, setModalType] = useState<"MANUTENCAO_SERVIDOR" | "TRATAR_PONTO" | "VER_ATESTADO" | "FICHA_FUNCIONAL" | "MANUTENCAO_CANDIDATO" | "GERENCIAR_CARGOS" | "RESET_ACESSO" | null>(null);
   const [selectedItem, setSelectedItem] = useState<any>(null);
 
   const [loadingCep, setLoadingCep] = useState(false);
@@ -139,15 +137,33 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     }
   }
 
-  // GESTÃO DE CARGOS
+  // GESTÃO DE RECUPERAÇÃO DE ACESSO
+  async function handleResetAcessoSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    const formData = new FormData(event.currentTarget);
+    const result = await resetarAcessoServidorAction(formData);
+    
+    if (result?.error) {
+      setMessage({ type: "error", text: result.error });
+    } else {
+      setMessage({ type: "success", text: result.success as string });
+      // Fecha a janela de recuperação após 2 segundos de sucesso
+      setTimeout(() => {
+        closeModal();
+        router.refresh();
+      }, 2000);
+    }
+    setLoading(false);
+  }
+
   async function handleCargoSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     const formData = new FormData(event.currentTarget);
     const result = await salvarCargoAction(formData);
-    if (result?.error) {
-      setMessage({ type: "error", text: result.error });
-    } else {
+    if (result?.error) setMessage({ type: "error", text: result.error });
+    else {
       const novosCargos = await listarCargosAction();
       setCargosCadastrados(novosCargos);
       (event.target as HTMLFormElement).reset();
@@ -156,7 +172,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     setLoading(false);
   }
 
-  // GESTÃO DE RECRUTAMENTO
   async function handleCandidatoSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
@@ -298,7 +313,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
   const totalPts = pts.length;
   const atestadosPendentes = atestadosFiltrados.filter(a => a.status === 'PENDENTE').length;
 
-  // Calculando quem está de férias/licença HOJE
   const emFeriasOuLicencaHoje = eventosCadastrados.filter(e => {
     if (e.status !== 'APROVADO') return false;
     const sId = e.servidorId;
@@ -310,7 +324,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
     return dataHojeObj >= dInicio && dataHojeObj <= dFim;
   }).length;
 
-  // Distribuições para Gráficos e Relatórios
   const contagemEscalas = ativos.reduce((acc: any, s:any) => { acc[s.escala] = (acc[s.escala] || 0) + 1; return acc; }, {});
   const contagemVinculos = ativos.reduce((acc: any, s:any) => { acc[s.vinculo || 'Não Informado'] = (acc[s.vinculo || 'Não Informado'] || 0) + 1; return acc; }, {});
   const contagemGenero = ativos.reduce((acc: any, s:any) => { acc[s.genero || 'Não Informado'] = (acc[s.genero || 'Não Informado'] || 0) + 1; return acc; }, {});
@@ -478,7 +491,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         )}
 
         {/* ======================================================================= */}
-        {/* TAB 2: SERVIDORES (COM O NOVO BOTÃO DE CARGOS)                          */}
+        {/* TAB 2: SERVIDORES (COM O NOVO BOTÃO DE ACESSO)                          */}
         {/* ======================================================================= */}
         {activeTab === "SERVIDORES" && (
           <div className="animate-in fade-in duration-300">
@@ -504,6 +517,10 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                       <td className="px-6 py-4 text-xs font-bold text-gray-500 uppercase">{s.vinculo || 'Não Informado'}</td>
                       <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-[10px] font-black uppercase tracking-wider ${s.status === 'ATIVO' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{s.status}</span></td>
                       <td className="px-6 py-4 text-right space-x-3">
+                        
+                        {/* NOVO BOTÃO DE RESETAR ACESSO */}
+                        <button onClick={() => { setSelectedItem(s); setModalType("RESET_ACESSO"); setIsModalOpen(true); }} className="text-amber-600 hover:underline font-bold text-xs bg-amber-50 px-2 py-1 rounded">🔑 Acesso</button>
+                        
                         <button onClick={() => { setSelectedItem(s); setModalType("MANUTENCAO_SERVIDOR"); setIsModalOpen(true); }} className="text-blue-600 hover:underline font-bold text-xs bg-blue-50 px-2 py-1 rounded">Editar Info</button>
                         <button onClick={() => openFichaFuncional(s)} className="text-purple-600 hover:underline font-bold text-xs bg-purple-50 px-2 py-1 rounded">Ficha / Férias</button>
                       </td>
@@ -541,7 +558,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                       <p><strong>CPF:</strong> <span className="font-mono">{formatCPF_RG_OnLoad(cand.cpf)}</span></p><p><strong>E-mail:</strong> {cand.email}</p><p><strong>Telefone:</strong> <span className="font-mono">{formatTelefone_OnLoad(cand.telefone)}</span></p>
                     </div>
                     <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                      <span className="block text-[10px] font-black text-teal-800 uppercase tracking-wider mb-1">Qualificação / Adaptação</span>
+                      <span className="block text-[10px] font-black text-teal-800 uppercase tracking-wider mb-1">Qualificação / Área de Adaptação</span>
                       <p className="text-xs text-gray-700 leading-relaxed italic">&quot;{cand.qualificacao}&quot;</p>
                     </div>
                   </div>
@@ -815,7 +832,45 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
       {/* MODAIS GLOBAIS                                                                                            */}
       {/* ========================================================================================================= */}
       
-      {/* MODAL: GERENCIAR CARGOS (NOVO) */}
+      {/* MODAL: RESET DE ACESSO (NOVO) */}
+      {isModalOpen && modalType === "RESET_ACESSO" && selectedItem && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="px-6 py-4 border-b bg-amber-50 flex justify-between items-center shrink-0">
+              <h3 className="font-bold text-amber-900 text-lg flex items-center gap-2">🔑 Recuperação de Acesso</h3>
+              <button onClick={closeModal} className="text-amber-700 hover:text-red-500 font-bold text-2xl transition-colors">&times;</button>
+            </div>
+            <form onSubmit={handleResetAcessoSubmit} className="p-6 space-y-4">
+              {message && <div className={`p-3 rounded-lg text-sm font-bold border ${message.type === 'error' ? 'bg-red-50 text-red-800 border-red-200' : 'bg-green-50 text-green-800 border-green-200'}`}>{message.text}</div>}
+              
+              <input type="hidden" name="id" value={selectedItem.id} />
+              
+              <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 mb-4">
+                <p className="text-xs text-gray-500 font-bold">Servidor: <span className="text-gray-800">{selectedItem.nome}</span></p>
+                <p className="text-xs text-gray-500 font-bold">Login (CPF): <span className="text-gray-800 font-mono">{formatCPF_RG_OnLoad(selectedItem.cpf)}</span></p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Atualizar E-mail de Recuperação</label>
+                <input type="email" name="email" defaultValue={selectedItem.email} placeholder="servidor@email.com" className="w-full px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-amber-500 outline-none" />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Nova Senha Provisória *</label>
+                <input type="text" name="senha" required defaultValue="fase123" className="w-full px-3 py-2 border rounded-md text-sm font-mono focus:ring-2 focus:ring-amber-500 outline-none" />
+                <p className="text-[10px] text-gray-500 mt-1">Recomendamos manter &quot;fase123&quot; e pedir ao servidor para alterar depois.</p>
+              </div>
+
+              <div className="pt-4 flex justify-end space-x-3">
+                <button type="button" onClick={closeModal} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-bold hover:bg-gray-200">Cancelar</button>
+                <button type="submit" disabled={loading} className="px-5 py-2 bg-amber-600 text-white rounded-lg text-sm font-bold hover:bg-amber-700 shadow-sm">{loading ? "Salvando..." : "Redefinir Acesso"}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: GERENCIAR CARGOS */}
       {isModalOpen && modalType === "GERENCIAR_CARGOS" && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
@@ -874,7 +929,7 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
         </div>
       )}
 
-      {/* MODAL GLOBAL: MANUTENÇÃO DE SERVIDORES (COM DATALIST DE CARGOS) */}
+      {/* MODAL GLOBAL: MANUTENÇÃO DE SERVIDORES */}
       {isModalOpen && modalType === "MANUTENCAO_SERVIDOR" && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -959,7 +1014,6 @@ export default function RHClient({ unidades, servidores, pontos }: any) {
                     <h4 className="font-black text-[#0f2a4a] text-sm uppercase tracking-wider border-b border-gray-200 pb-2">5. Cargo e Lotação</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       
-                      {/* NOVO CAMPO INTELIGENTE DE CARGOS COM DATALIST */}
                       <div className="md:col-span-2 relative">
                         <label className="block text-xs font-bold text-gray-700 mb-1">Cargo Atual *</label>
                         <input type="text" name="cargo" list="lista-cargos" defaultValue={selectedItem?.cargo} required placeholder="Digite ou selecione o cargo..." className="w-full px-3 py-2 border border-blue-300 rounded-md text-sm bg-blue-50 focus:bg-white uppercase outline-none focus:ring-2 focus:ring-blue-500" />

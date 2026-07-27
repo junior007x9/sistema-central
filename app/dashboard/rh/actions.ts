@@ -12,6 +12,34 @@ async function registrarLog(entidade: string, acao: string, detalhe: string, obs
 }
 
 // ==========================================
+// MÓDULO: RECUPERAÇÃO DE ACESSO (NOVO)
+// ==========================================
+export async function resetarAcessoServidorAction(formData: FormData) {
+  const id = formData.get("id") as string;
+  const email = formData.get("email") as string;
+  const novaSenha = formData.get("senha") as string;
+
+  if (!id || !novaSenha) return { error: "A nova senha provisória é obrigatória." };
+
+  try {
+    const custoSalt = 10;
+    const senhaCriptografada = await bcrypt.hash(novaSenha, custoSalt);
+    
+    // Atualiza a senha e o e-mail (se fornecido)
+    const updateData: any = { senha: senhaCriptografada };
+    if (email) updateData.email = email;
+
+    await db.update(servidores).set(updateData).where(eq(servidores.id, id));
+    
+    await registrarLog("SEGURANÇA", "RESET_ACESSO", `ID_SERVIDOR:${id}`, `Senha redefinida pelo RH. Acesso recuperado.`);
+    return { success: "Acesso redefinido com sucesso! O servidor já pode fazer login." };
+  } catch (e: any) {
+    console.error(e);
+    return { error: `Erro no BD ao redefinir acesso: ${e.message}` };
+  }
+}
+
+// ==========================================
 // MÓDULO: CARGOS
 // ==========================================
 export async function salvarCargoAction(formData: FormData) {
@@ -19,11 +47,7 @@ export async function salvarCargoAction(formData: FormData) {
   if (!nome) return { error: "O nome do cargo é obrigatório." };
 
   try {
-    await db.insert(cargos).values({
-      id: crypto.randomUUID(),
-      nome: nome.toUpperCase().trim(),
-      createdAt: new Date()
-    });
+    await db.insert(cargos).values({ id: crypto.randomUUID(), nome: nome.toUpperCase().trim(), createdAt: new Date() });
     await registrarLog("CONFIGURAÇÕES", "CRIAR_CARGO", `Cargo: ${nome}`, "Novo cargo adicionado à estrutura.");
     return { success: "Cargo cadastrado com sucesso!" };
   } catch (e: any) {
@@ -79,7 +103,7 @@ export async function listarCandidatosAction() {
 }
 
 // ==========================================
-// MÓDULO: SERVIDORES (COM TRATAMENTO DE ERROS MELHORADO)
+// MÓDULO: SERVIDORES 
 // ==========================================
 export async function salvarServidorAction(formData: FormData) {
   const id = formData.get("id") as string;
@@ -115,7 +139,7 @@ export async function salvarServidorAction(formData: FormData) {
     cpf: cleanCpf, rg: cleanRg, tituloEleitoral: formData.get("tituloEleitoral") as string,
     pis: cleanPis, dependentes: formData.get("dependentes") as string, banco: formData.get("banco") as string,
     agencia: formData.get("agencia") as string, conta: formData.get("conta") as string,
-    cargo: cargo.toUpperCase().trim(), // Padroniza o cargo em maiúsculas
+    cargo: cargo.toUpperCase().trim(),
     escala: formData.get("escala") as string, centerId, status,
     vinculo: formData.get("vinculo") as string, dataAdmissao: formData.get("dataAdmissao") as string,
     dataDesligamento: formData.get("dataDesligamento") as string, motivoDesligamento: formData.get("motivoDesligamento") as string,
@@ -144,7 +168,6 @@ export async function salvarServidorAction(formData: FormData) {
       await registrarLog("SERVIDOR", "EDITAR", `${dadosServidor.nome}`, observacao);
       return { success: "Ficha do servidor atualizada!" };
     } catch (e: any) {
-      console.error(e);
       return { error: `Erro no BD (Update): ${e.message}` };
     }
   } else {
@@ -166,8 +189,6 @@ export async function salvarServidorAction(formData: FormData) {
       
       return { success: "Servidor cadastrado com sucesso!" };
     } catch (e: any) { 
-      console.error(e);
-      // EXIBE O ERRO REAL NA TELA PARA IDENTIFICAR O PROBLEMA
       return { error: `Erro no Banco de Dados: ${e.message}` }; 
     }
   }
